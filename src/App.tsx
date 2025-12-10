@@ -51,7 +51,7 @@ export interface ReferenceData { id: string; name: string; lastUpdated: string; 
 
 /**
  * ==========================================
- * 2. UTILITAIRES (DÉFINIS AVANT LES COMPOSANTS)
+ * 2. UTILITAIRES & SERVICES
  * ==========================================
  */
 
@@ -113,13 +113,9 @@ const saveCommuneToDb = async (commune: CommuneData) => {
     // @ts-ignore
     const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
     
-    // Create copy to modify without affecting original object reference
     const dataToSave = { ...commune };
-    // Remove the API flag before saving to DB
-    if ('isApiSource' in dataToSave) {
-        // @ts-ignore
-        delete dataToSave.isApiSource;
-    }
+    // @ts-ignore
+    delete dataToSave.isApiSource;
     
     await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
     return true;
@@ -155,7 +151,7 @@ const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
 
 /**
  * ==========================================
- * 3. DONNÉES DE DÉMARRAGE (SEED)
+ * 3. DONNÉES STATIQUES & SEED
  * ==========================================
  */
 const FULL_DB_59 = [
@@ -369,7 +365,7 @@ const CUD_DEF = {
     subsidiesNPNRU: [
         { type: "Subv. PLAI", amount: "6 300+1 500", condition: "Doublé si AA" },
         { type: "Prêt PLAI", amount: "7 900+1 900", condition: "Doublé si AA" },
-        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Double si AA" }
+        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Doublé si AA" }
     ],
     subsidiesCD: [
         { type: "CD PLAI", amount: "27 000 €", condition: "Forfait" },
@@ -394,13 +390,15 @@ const CUD_DEF = {
         { type: "BBC Rénov 2024", product: "PLUS", margin: "Z2:4%|Z3:7%" }
     ],
     accessoryRents: [
-        { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Garage", product: "PLAI", maxRent: "15 €", condition: "" },
         { type: "Garage", product: "PLUS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
         { type: "Garage", product: "PLS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
-        { type: "Carport", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Carport", product: "PLUS/PLS", maxRent: "25 €", condition: "" },
-        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Stationnement", product: "PLUS/PLS", maxRent: "18 €", condition: "" }
+        { type: "Carport", product: "PLAI", maxRent: "10€/12€", condition: "Local/Fermé" },
+        { type: "Carport", product: "PLUS", maxRent: "20€/25€", condition: "Local/Fermé" },
+        { type: "Carport", product: "PLS", maxRent: "20€/25€", condition: "Local/Fermé" },
+        { type: "Stationnement", product: "PLAI", maxRent: "8 €", condition: "" },
+        { type: "Stationnement", product: "PLUS", maxRent: "16 €", condition: "" },
+        { type: "Stationnement", product: "PLS", maxRent: "16 €", condition: "" }
     ],
     hasMargins: false, hasRents: true, footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
 };
@@ -803,7 +801,7 @@ const SimulationPanel = ({ referenceData }: { referenceData: ReferenceData }) =>
           <div className="p-4">
               <div className="grid grid-cols-3 gap-2 mb-4">
                   <div className="bg-blue-50 p-2 rounded"><label className="block text-[10px] font-bold text-blue-800 mb-1">Nb PLAI</label><input type="number" min="0" value={plai} onChange={e => setPlai(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
-                  <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPlus(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
+                  <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
                   <div className="bg-green-50 p-2 rounded"><label className="block text-[10px] font-bold text-green-800 mb-1">Nb PLS</label><input type="number" min="0" value={pls} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
               </div>
               <div className="bg-gray-900 text-white p-3 rounded-lg text-center"><p className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">Total Estimé</p><p className="text-2xl font-bold text-green-400">{formatCurrency(calculateTotal())}</p></div>
@@ -1046,7 +1044,6 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState<CommuneData[]>([]);
-  // @ts-ignore
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
@@ -1112,7 +1109,7 @@ const App: React.FC = () => {
           <div className="flex flex-col items-center justify-center h-full animate-fade-in text-center mt-12">
              <div className="bg-white rounded-3xl shadow-xl p-10 border border-slate-100 max-w-2xl">
                 <h1 className="text-3xl font-bold text-slate-900 mb-4">Référentiel Habitat <span className="text-blue-600">Nord (59)</span></h1>
-                <p className="text-slate-500 mb-8">Base de données complète avec édition des référentiels en ligne.</p>
+                <p className="text-slate-500 mb-8">Base de données complète (648 communes) avec zonages, taux SRU et financements CUD/MEL/Valenciennes/CAPH.</p>
                 {isAdmin && <div className="text-green-600 font-bold text-sm bg-green-50 p-2 rounded border border-green-200">Mode Administrateur Actif</div>}
              </div>
           </div>
