@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, MapPin, Building2, Users, AlertTriangle, 
-  CheckCircle, Save, Database, Plus, Trash2, Lock, Unlock, 
-  X, Calculator, ChevronUp, CheckSquare, Square, 
-  Landmark, BadgeCheck, MapPinned, Target, CloudDownload, FileText, Edit3
+  CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
+  X, Calculator, ChevronUp, Landmark, BadgeCheck, MapPinned, Target, 
+  CloudDownload, FileText, Edit3
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -21,7 +21,6 @@ import {
  * ==========================================
  */
 
-// --- CONFIGURATION FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyDOBFXdCfEH0IJ_OsIH7rHijYT_NEY1FGA",
   authDomain: "marges-locales59.firebaseapp.com",
@@ -31,7 +30,6 @@ const firebaseConfig = {
   appId: "1:1077584427724:web:39e529e17d4021110e6069"
 };
 
-// Initialisation
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -231,7 +229,7 @@ const CUD_DEF = {
     subsidiesNPNRU: [
         { type: "Subv. PLAI", amount: "6 300+1 500", condition: "Doublé si AA" },
         { type: "Prêt PLAI", amount: "7 900+1 900", condition: "Doublé si AA" },
-        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Double si AA" }
+        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Doublé si AA" }
     ],
     subsidiesCD: [
         { type: "CD PLAI", amount: "27 000 €", condition: "Forfait" },
@@ -686,7 +684,7 @@ const SimulationPanel = ({ referenceData }: { referenceData: ReferenceData }) =>
           <div className="p-4">
               <div className="grid grid-cols-3 gap-2 mb-4">
                   <div className="bg-blue-50 p-2 rounded"><label className="block text-[10px] font-bold text-blue-800 mb-1">Nb PLAI</label><input type="number" min="0" value={plai} onChange={e => setPlai(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
-                  <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
+                  <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPlus(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
                   <div className="bg-green-50 p-2 rounded"><label className="block text-[10px] font-bold text-green-800 mb-1">Nb PLS</label><input type="number" min="0" value={pls} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
               </div>
               <div className="bg-gray-900 text-white p-3 rounded-lg text-center"><p className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">Total Estimé (État + EPCI + CD)</p><p className="text-2xl font-bold text-green-400">{formatCurrency(calculateTotal())}</p></div>
@@ -949,7 +947,6 @@ const App: React.FC = () => {
   useEffect(() => {
     const search = async () => {
         if (searchTerm.length < 2) { setSuggestions([]); return; }
-        setLoading(true);
         const localMatches = allCommunes.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 5);
         const apiRes = await searchGeoApi(searchTerm);
         const merged = [...localMatches];
@@ -957,7 +954,6 @@ const App: React.FC = () => {
             if(!merged.find(m => m.insee === apiC.insee)) merged.push(apiC);
         });
         setSuggestions(merged.slice(0, 7));
-        setLoading(false);
     };
     const t = setTimeout(search, 300);
     return () => clearTimeout(t);
@@ -974,7 +970,6 @@ const App: React.FC = () => {
           <div className="flex-grow relative max-w-xl">
             <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Rechercher une commune..." className="w-full pl-9 pr-4 py-2 bg-slate-100 border-transparent focus:bg-white border focus:border-blue-500 rounded-lg outline-none transition-all shadow-inner text-sm" />
             <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
-            {loading && <div className="absolute right-3 top-2.5"><Loader2 className="w-4 h-4 animate-spin text-blue-500"/></div>}
             {suggestions.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden z-50">
                     {suggestions.map(s => (
