@@ -12,7 +12,7 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch 
 } from 'firebase/firestore';
 import { 
-  getAuth, signInAnonymously, onAuthStateChanged 
+  getAuth, signInAnonymously, onAuthStateChanged, User 
 } from 'firebase/auth';
 
 /**
@@ -112,9 +112,15 @@ const saveCommuneToDb = async (commune: CommuneData) => {
     const docId = commune.insee;
     // @ts-ignore
     const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
-    const { isApiSource, ...dataToSave } = commune; 
-    // @ts-ignore
-    delete dataToSave.isApiSource;
+    
+    // Create copy to modify without affecting original object reference
+    const dataToSave = { ...commune };
+    // Remove the API flag before saving to DB
+    if ('isApiSource' in dataToSave) {
+        // @ts-ignore
+        delete dataToSave.isApiSource;
+    }
+    
     await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
     return true;
   } catch (err) { return false; }
@@ -231,6 +237,27 @@ const FULL_DB_59 = [
 
 // --- DONNÉES RÉFÉRENTIELS (RÈGLES) ---
 
+const seedDatabase = async () => {
+    const commSnap = await getDocs(getCommunesCollection());
+    if (commSnap.empty) {
+        const batch = writeBatch(db);
+        FULL_DB_59.forEach((c) => { // @ts-ignore
+            batch.set(doc(db, ...PUBLIC_DATA_PATH, c.insee), { ...c, lastUpdated: new Date().toLocaleDateString('fr-FR') });
+        });
+        await batch.commit();
+    }
+    // Seed Refs if empty
+    const refSnap = await getDocs(getRefsCollection());
+    if (refSnap.empty) {
+        const batch = writeBatch(db);
+        ALL_REFS_DEF.forEach((r) => { // @ts-ignore
+            batch.set(doc(db, ...REFS_DATA_PATH, r.id), r);
+        });
+        await batch.commit();
+    }
+    return true;
+};
+
 // 1. DDTM (Défaut)
 const DDTM_DEF = {
     id: 'ddtm', name: 'DDTM 59 (Droit Commun)', lastUpdated: '01/01/2024',
@@ -342,7 +369,7 @@ const CUD_DEF = {
     subsidiesNPNRU: [
         { type: "Subv. PLAI", amount: "6 300+1 500", condition: "Doublé si AA" },
         { type: "Prêt PLAI", amount: "7 900+1 900", condition: "Doublé si AA" },
-        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Doublé si AA" }
+        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Double si AA" }
     ],
     subsidiesCD: [
         { type: "CD PLAI", amount: "27 000 €", condition: "Forfait" },
@@ -367,15 +394,13 @@ const CUD_DEF = {
         { type: "BBC Rénov 2024", product: "PLUS", margin: "Z2:4%|Z3:7%" }
     ],
     accessoryRents: [
-        { type: "Garage", product: "PLAI", maxRent: "15 €", condition: "" },
+        { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "" },
         { type: "Garage", product: "PLUS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
         { type: "Garage", product: "PLS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
-        { type: "Carport", product: "PLAI", maxRent: "10€/12€", condition: "Local/Fermé" },
-        { type: "Carport", product: "PLUS", maxRent: "20€/25€", condition: "Local/Fermé" },
-        { type: "Carport", product: "PLS", maxRent: "20€/25€", condition: "Local/Fermé" },
-        { type: "Stationnement", product: "PLAI", maxRent: "8 €", condition: "" },
-        { type: "Stationnement", product: "PLUS", maxRent: "16 €", condition: "" },
-        { type: "Stationnement", product: "PLS", maxRent: "16 €", condition: "" }
+        { type: "Carport", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Carport", product: "PLUS/PLS", maxRent: "25 €", condition: "" },
+        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Stationnement", product: "PLUS/PLS", maxRent: "18 €", condition: "" }
     ],
     hasMargins: false, hasRents: true, footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
 };
@@ -554,7 +579,9 @@ const parseCurrency = (v: string) => {
     if(!v) return 0;
     const m = v.match(/(\d+)/g); return m ? Math.max(...m.map(n => parseInt(n))) : 0; 
 };
+
 const formatCurrency = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+
 const getMarginValue = (marginStr: string, zoneRental: string) => {
     if (!marginStr || !marginStr.includes("Z")) return marginStr;
     if (zoneRental === "2" && marginStr.includes("Z2:")) return marginStr.match(/Z2:([^|]+)/)?.[1] || marginStr;
@@ -563,12 +590,10 @@ const getMarginValue = (marginStr: string, zoneRental: string) => {
 };
 
 // --- SERVICES DB ---
-const getCommunesCollection = () => { // @ts-ignore
-    return collection(db, ...PUBLIC_DATA_PATH); 
-};
-const getRefsCollection = () => { // @ts-ignore
-    return collection(db, ...REFS_DATA_PATH); 
-};
+// @ts-ignore
+const getCommunesCollection = () => collection(db, ...PUBLIC_DATA_PATH); 
+// @ts-ignore
+const getRefsCollection = () => collection(db, ...REFS_DATA_PATH); 
 
 const fetchAllCommunes = async () => {
   try { const snap = await getDocs(getCommunesCollection()); return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommuneData)); } catch { return []; }
@@ -596,11 +621,16 @@ const saveCommuneToDb = async (commune: CommuneData) => {
     const docId = commune.insee;
     // @ts-ignore
     const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
-    const { isApiSource, ...dataToSave } = commune;
-    // Supprimer la propriété isApiSource de l'objet pour qu'elle ne soit pas sauvegardée (sans utiliser delete)
-    const dataForDb = { ...dataToSave }; 
-    // @ts-ignore
-    await setDoc(docRef, { ...dataForDb, lastUpdated: new Date().toLocaleDateString('fr-FR') });
+    
+    // Create copy to modify without affecting original object reference
+    const dataToSave = { ...commune };
+    // Remove the API flag before saving to DB
+    if ('isApiSource' in dataToSave) {
+        // @ts-ignore
+        delete dataToSave.isApiSource;
+    }
+    
+    await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
     return true;
   } catch (err) { return false; }
 };
@@ -611,28 +641,6 @@ const deleteCommuneFromDb = async (insee: string) => {
     } catch { return false; }
 }
 
-const seedDatabase = async () => {
-    const commSnap = await getDocs(getCommunesCollection());
-    if (commSnap.empty) {
-        const batch = writeBatch(db);
-        FULL_DB_59.forEach((c) => { // @ts-ignore
-            batch.set(doc(db, ...PUBLIC_DATA_PATH, c.insee), { ...c, lastUpdated: new Date().toLocaleDateString('fr-FR') });
-        });
-        await batch.commit();
-    }
-    // Seed Refs if empty
-    const refSnap = await getDocs(getRefsCollection());
-    if (refSnap.empty) {
-        const batch = writeBatch(db);
-        ALL_REFS_DEF.forEach((r) => { // @ts-ignore
-            batch.set(doc(db, ...REFS_DATA_PATH, r.id), r);
-        });
-        await batch.commit();
-    }
-    return true;
-};
-
-// --- API GEO ---
 const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
     if (term.length < 2) return [];
     try {
@@ -654,7 +662,11 @@ const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
     } catch { return []; }
 };
 
-// --- COMPOSANTS UI ---
+/**
+ * ==========================================
+ * 4. COMPOSANTS UI
+ * ==========================================
+ */
 
 const StatsCard = ({ title, value, subValue, icon, alert, isApiGenerated }: any) => (
   <div className={`relative bg-white rounded-lg shadow-sm p-3 border-l-4 ${alert ? 'border-red-500' : 'border-brand-500'} flex items-start justify-between overflow-hidden group hover:shadow-md h-full`}>
@@ -1034,6 +1046,7 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState<CommuneData[]>([]);
+  // @ts-ignore
   const [user, setUser] = useState<User | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
