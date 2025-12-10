@@ -31,7 +31,7 @@ const firebaseConfig = {
   appId: "1:1077584427724:web:39e529e17d4021110e6069"
 };
 
-// Initialisation de Firebase avec vos clés
+// Initialisation de Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -40,7 +40,7 @@ const db = getFirestore(app);
 const APP_ID = 'nord-habitat-v1'; 
 const PUBLIC_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'communes'];
 
-// --- BASE DE DONNÉES MASSIVE (Extension Douaisis & Valenciennois incluse) ---
+// --- BASE DE DONNÉES MASSIVE ---
 const FULL_DB_59 = [
   // --- DT FLANDRE GRAND LITTORAL ---
   { insee: "59183", name: "Dunkerque", epci: "CU de Dunkerque", population: 86788, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 35.0, cible: 25 },
@@ -243,8 +243,8 @@ const CUD_DATA: ReferenceData = {
         { type: "Restructuration", amount: "2 500 €", condition: "Grands lgts" }
     ],
     subsidiesNPNRU: [
-        { type: "Subv. PLAI", amount: "6 300+1 500", condition: "Double si AA" },
-        { type: "Prêt PLAI", amount: "7 900+1 900", condition: "Double si AA" },
+        { type: "Subv. PLAI", amount: "6 300+1 500", condition: "Doublé si AA" },
+        { type: "Prêt PLAI", amount: "7 900+1 900", condition: "Doublé si AA" },
         { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Double si AA" }
     ],
     subsidiesCD: [
