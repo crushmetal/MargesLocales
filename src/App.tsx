@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  Search, MapPin, Building2, Users, AlertTriangle, 
+  FileSearch, Search, MapPin, Building2, Users, AlertTriangle, 
   CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
   X, Calculator, ChevronUp, ChevronDown, CheckSquare, Square, 
   Landmark, BadgeCheck, MapPinned, Target, CloudDownload, FileText, Edit3
@@ -12,7 +12,7 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch 
 } from 'firebase/firestore';
 import { 
-  getAuth, signInAnonymously, onAuthStateChanged 
+  getAuth, signInAnonymously, onAuthStateChanged, User 
 } from 'firebase/auth';
 
 /**
@@ -21,7 +21,7 @@ import {
  * ==========================================
  */
 
-// --- CONFIGURATION FIREBASE (VOS CLÉS) ---
+// --- CONFIGURATION FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyDOBFXdCfEH0IJ_OsIH7rHijYT_NEY1FGA",
   authDomain: "marges-locales59.firebaseapp.com",
@@ -31,7 +31,7 @@ const firebaseConfig = {
   appId: "1:1077584427724:web:39e529e17d4021110e6069"
 };
 
-// Initialisation de Firebase
+// Initialisation
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -231,7 +231,7 @@ const CUD_DEF = {
     subsidiesNPNRU: [
         { type: "Subv. PLAI", amount: "6 300+1 500", condition: "Doublé si AA" },
         { type: "Prêt PLAI", amount: "7 900+1 900", condition: "Doublé si AA" },
-        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Double si AA" }
+        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Doublé si AA" }
     ],
     subsidiesCD: [
         { type: "CD PLAI", amount: "27 000 €", condition: "Forfait" },
@@ -257,8 +257,8 @@ const CUD_DEF = {
     ],
     accessoryRents: [
         { type: "Garage", product: "PLAI", maxRent: "15 €", condition: "" },
-        { type: "Garage", product: "PLUS", maxRent: "32 €", condition: "" },
-        { type: "Garage", product: "PLS", maxRent: "38 €", condition: "" },
+        { type: "Garage", product: "PLUS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
+        { type: "Garage", product: "PLS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
         { type: "Carport", product: "PLAI", maxRent: "10€/12€", condition: "Local/Fermé" },
         { type: "Carport", product: "PLUS", maxRent: "20€/25€", condition: "Local/Fermé" },
         { type: "Carport", product: "PLS", maxRent: "20€/25€", condition: "Local/Fermé" },
