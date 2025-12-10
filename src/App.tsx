@@ -12,7 +12,7 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch 
 } from 'firebase/firestore';
 import { 
-  getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, User 
+  getAuth, signInAnonymously, onAuthStateChanged, User 
 } from 'firebase/auth';
 
 /**
@@ -256,21 +256,19 @@ const CUD_DEF = {
         { type: "BBC Rénov 2024", product: "PLUS", margin: "Z2:4%|Z3:7%" }
     ],
     accessoryRents: [
-        { type: "Garage", product: "PLAI", maxRent: "15 €", condition: "" },
-        { type: "Garage", product: "PLUS", maxRent: "32 €", condition: "" },
-        { type: "Garage", product: "PLS", maxRent: "38 €", condition: "" },
-        { type: "Carport", product: "PLAI", maxRent: "10€/12€", condition: "Local/Fermé" },
-        { type: "Carport", product: "PLUS", maxRent: "20€/25€", condition: "Local/Fermé" },
-        { type: "Carport", product: "PLS", maxRent: "20€/25€", condition: "Local/Fermé" },
-        { type: "Stationnement", product: "PLAI", maxRent: "8 €", condition: "" },
-        { type: "Stationnement", product: "PLUS", maxRent: "16 €", condition: "" },
-        { type: "Stationnement", product: "PLS", maxRent: "16 €", condition: "" }
+        { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Garage", product: "PLUS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
+        { type: "Garage", product: "PLS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
+        { type: "Carport", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Carport", product: "PLUS/PLS", maxRent: "25 €", condition: "" },
+        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Stationnement", product: "PLUS/PLS", maxRent: "18 €", condition: "" }
     ],
     hasMargins: false, hasRents: true, footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
 };
 
 // 4. CAPH
-const CAPH_DEF = { ...CUD_DEF, id: 'caph', name: "Porte du Hainaut (CAPH)" }; // Simplifié pour demo, à remplir
+const CAPH_DEF = { ...CUD_DEF, id: 'caph', name: "Porte du Hainaut (CAPH)" };
 
 // 5. CAVM
 const CAVM_DEF = { ...CUD_DEF, id: 'cavm', name: "Valenciennes Métropole (CAVM)" };
@@ -635,8 +633,14 @@ const AdminCommuneEditor = ({ onClose, initialData }: { onClose: () => void; ini
   };
   
   const handleFormChange = (f: string, v: any, n?: string) => {
-      // @ts-ignore
-      setEditForm(p => n ? ({ ...p, [n]: { ...p[n], [f]: v } }) : ({ ...p, [f]: v }));
+      setEditForm(prev => {
+        if (!prev) return null;
+        if (n) {
+            // @ts-ignore
+            return { ...prev, [n]: { ...prev[n], [f]: v } };
+        }
+        return { ...prev, [f]: v };
+    });
   };
 
   return (
@@ -748,6 +752,7 @@ const App: React.FC = () => {
   const [allCommunes, setAllCommunes] = useState<CommuneData[]>([]);
 
   useEffect(() => {
+    // Connexion anonyme simplifiée
     signInAnonymously(auth).catch(console.error);
     return onAuthStateChanged(auth, setUser);
   }, []);
