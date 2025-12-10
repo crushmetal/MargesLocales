@@ -3,7 +3,7 @@ import {
   FileSearch, Search, MapPin, Building2, Users, AlertTriangle, 
   CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
   X, Calculator, ChevronUp, ChevronDown, CheckSquare, Square, 
-  Landmark, BadgeCheck, MapPinned, Target, CloudDownload, FileText
+  Landmark, BadgeCheck, MapPinned, Target, CloudDownload, FileText, Edit3
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -12,7 +12,7 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch 
 } from 'firebase/firestore';
 import { 
-  getAuth, signInAnonymously, onAuthStateChanged, User 
+  getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, User 
 } from 'firebase/auth';
 
 /**
@@ -21,7 +21,7 @@ import {
  * ==========================================
  */
 
-// --- CONFIGURATION FIREBASE (VOS CLÉS) ---
+// --- CONFIGURATION FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyDOBFXdCfEH0IJ_OsIH7rHijYT_NEY1FGA",
   authDomain: "marges-locales59.firebaseapp.com",
@@ -31,16 +31,16 @@ const firebaseConfig = {
   appId: "1:1077584427724:web:39e529e17d4021110e6069"
 };
 
-// Initialisation de Firebase avec vos clés
+// Initialisation
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
-// Nom de la "collection" principale dans votre base de données
 const APP_ID = 'nord-habitat-v1'; 
 const PUBLIC_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'communes'];
+const REFS_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'references'];
 
-// --- BASE DE DONNÉES MASSIVE (Extension Douaisis & Valenciennois incluse) ---
+// --- DONNÉES DE DÉMARRAGE (SEED) ---
 const FULL_DB_59 = [
   // --- DT FLANDRE GRAND LITTORAL ---
   { insee: "59183", name: "Dunkerque", epci: "CU de Dunkerque", population: 86788, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 35.0, cible: 25 },
@@ -118,24 +118,10 @@ const FULL_DB_59 = [
   { insee: "59008", name: "Aniche", epci: "CC Cœur d'Ostrevent", population: 9997, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 }
 ];
 
-// --- TYPES & COMPOSANTS DE BASE ---
-
-const ViewState = {
-  HOME: 'HOME',
-  RESULT: 'RESULT',
-  ERROR: 'ERROR'
-};
-
-export interface HousingStats { socialHousingRate: number; targetRate: number; deficit: boolean; exempt?: boolean; }
-export interface Zoning { accession: string; rental: string; }
-export interface Source { title: string; uri: string; }
-export interface CommuneData { id?: string; name: string; insee: string; epci: string; population: number; directionTerritoriale?: string; stats: HousingStats; zoning: Zoning; sources?: Source[]; lastUpdated?: string; isApiSource?: boolean; }
-export interface ReferenceData { id: string; name: string; lastUpdated: string; subsidiesState: any[]; subsidiesEPCI?: any[]; subsidiesNPNRU: any[]; subsidiesCD: any[]; marginsRE2020?: any[]; marginsDivers?: any[]; margins?: any[]; accessoryRents?: any[]; footnotes: string[]; hasMargins: boolean; hasRents: boolean; }
-
-// --- DONNÉES RÉFÉRENTIELS ---
+// --- DONNÉES RÉFÉRENTIELS (RÈGLES) ---
 
 // 1. DDTM (Défaut)
-const DDTM_DATA: ReferenceData = {
+const DDTM_DEF = {
     id: 'ddtm', name: 'DDTM 59 (Droit Commun)', lastUpdated: '01/01/2024',
     subsidiesState: [{ type: "PLAI", amount: "13 500 €", condition: "/lgt" }, { type: "PLUS", amount: "5 400 €", condition: "/lgt" }],
     subsidiesCD: [{ type: "CD PLAI", amount: "4 000 €", condition: "Forfait" }, { type: "CD PLUS", amount: "2 000 €", condition: "Forfait" }],
@@ -148,8 +134,8 @@ const DDTM_DATA: ReferenceData = {
 };
 
 // 2. MEL
-const MEL_DATA: ReferenceData = {
-    ...DDTM_DATA, id: 'mel', name: 'Métropole Européenne de Lille', lastUpdated: 'Juillet 2025',
+const MEL_DEF = {
+    ...DDTM_DEF, id: 'mel', name: 'Métropole Européenne de Lille', lastUpdated: 'Juillet 2025',
     subsidiesState: [
         { type: "PLAI DC / AA", amount: "9 130 €", condition: "Cumulable Bonus" },
         { type: "PLAI Adapté (Ord)", amount: "16 480 €", condition: "1-3 lgts" },
@@ -215,9 +201,9 @@ const MEL_DATA: ReferenceData = {
     hasMargins: false, hasRents: false, footnotes: ["* Mega bonus: conditions spécifiques (voir tableau)."]
 };
 
-// 3. CUD (Dunkerque)
-const CUD_DATA: ReferenceData = {
-    ...DDTM_DATA, id: 'cud', name: 'Communauté Urbaine de Dunkerque', lastUpdated: 'Juillet 2025',
+// 3. CUD
+const CUD_DEF = {
+    ...DDTM_DEF, id: 'cud', name: 'Communauté Urbaine de Dunkerque', lastUpdated: 'Juillet 2025',
     subsidiesState: [
         { type: "PLAI - DC", amount: "6 452 €", condition: "/lgt" },
         { type: "PLAI Adapté (Ord)", amount: "16 480 €", condition: "1-3 lgts" },
@@ -270,77 +256,6 @@ const CUD_DATA: ReferenceData = {
         { type: "BBC Rénov 2024", product: "PLUS", margin: "Z2:4%|Z3:7%" }
     ],
     accessoryRents: [
-        { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Garage", product: "PLUS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
-        { type: "Garage", product: "PLS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
-        { type: "Carport", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Carport", product: "PLUS/PLS", maxRent: "25 €", condition: "" },
-        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Stationnement", product: "PLUS/PLS", maxRent: "18 €", condition: "" }
-    ],
-    hasMargins: true, hasRents: true,
-    footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
-};
-
-// 4. CAPH (Porte du Hainaut)
-const CAPH_DATA: ReferenceData = {
-    ...DDTM_DATA, id: 'caph', name: "Communauté d'Agglomération de la Porte du Hainaut (CAPH)", lastUpdated: 'Juillet 2025',
-    subsidiesState: [
-        { type: "PLAI - DC", amount: "6 452 €", condition: "/lgt" },
-        { type: "PLAI Adapté (Ord)", amount: "16 480 €", condition: "1-3 lgts" },
-        { type: "PLAI Adapté (Str)", amount: "8 980 €", condition: "En structure" },
-        { type: "PLAI - AA", amount: "16 000 €", condition: "Super bonus" },
-        { type: "PLUS - AA", amount: "20 000 €", condition: "Mega bonus*" },
-        { type: "Pensions/RS", amount: "7 500 €", condition: "Suppl. Adapté" }
-    ],
-    subsidiesEPCI: [
-        { type: "PLAI (Zone U)", amount: "3 000 €", condition: "/lgt" },
-        { type: "PLAI (Passif)", amount: "+ 3 000 €", condition: "/lgt" },
-        { type: "PLAI (T2 40%)", amount: "+ 1 000 €", condition: "/lgt" },
-        { type: "PLAI (Vertueux)", amount: "+ 1 500 €", condition: "/lgt" },
-        { type: "PLAI (Cuve)", amount: "+ 500 €", condition: "/cuve" },
-        { type: "PLAI AA", amount: "5 000 €", condition: "Max 25k/opé" },
-        { type: "PLUS (Zone U)", amount: "1 000 €", condition: "/lgt" },
-        { type: "PLUS (Passif)", amount: "+ 3 000 €", condition: "/lgt" },
-        { type: "PLUS (T2 40%)", amount: "+ 1 000 €", condition: "/lgt" },
-        { type: "PLUS (Vertueux)", amount: "+ 1 500 €", condition: "/lgt" },
-        { type: "PLUS AA", amount: "+ 1 500 €", condition: "Vertueux" },
-        { type: "PLS (Passif)", amount: "+ 1 000 €", condition: "/lgt" },
-        { type: "PLS (T2 40%)", amount: "+ 1 000 €", condition: "/lgt" },
-        { type: "PLS (Vertueux)", amount: "+ 1 500 €", condition: "/lgt" }
-    ],
-    subsidiesNPNRU: [
-        { type: "Subv. PLAI", amount: "6 300+1 500", condition: "Doublé si AA" },
-        { type: "Prêt PLAI", amount: "7 900+1 900", condition: "Doublé si AA" },
-        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Doublé si AA" }
-    ],
-    subsidiesCD: [
-        { type: "CD PLAI", amount: "27 000 €", condition: "Forfait" },
-        { type: "CD PLAI-A", amount: "33 250 €", condition: "Ttes zones" },
-        { type: "CD PLUS", amount: "18 000 €", condition: "Forfait" },
-        { type: "CD PLS", amount: "4 000 €", condition: "Forfait" }
-    ],
-    marginsRE2020: [
-        { type: "RE2020 Base", product: "PLUS", margin: "0%" },
-        { type: "Bbio -10%", product: "PLUS", margin: "0%" },
-        { type: "Bbio -20%", product: "PLUS", margin: "0%" },
-        { type: "Cepnr -10%", product: "PLUS", margin: "0%" },
-        { type: "Cepnr -20%", product: "PLUS", margin: "0%" },
-        { type: "Passif", product: "PLUS", margin: "0%" },
-        { type: "Energie +", product: "PLUS", margin: "0%" }
-    ],
-    marginsDivers: [
-        { type: "NF Habitat/Presta", product: "PLUS", margin: "0%" },
-        { type: "Logt individuel", product: "PLUS", margin: "0%" },
-        { type: "Indiv + Jardin", product: "PLUS", margin: "0%" },
-        { type: "Traversant", product: "PLUS", margin: "0%" },
-        { type: "Balcon/Terrasse", product: "PLUS", margin: "0%" },
-        { type: "Secteur ABF", product: "PLUS", margin: "0%" },
-        { type: "Ascenseur < R+3", product: "PLUS", margin: "0%" },
-        { type: "Locaux coll.", product: "PLUS", margin: "0%" },
-        { type: "Zone 3 Certifié", product: "PLUS", margin: "0%" }
-    ],
-    accessoryRents: [
         { type: "Garage", product: "PLAI", maxRent: "15 €", condition: "" },
         { type: "Garage", product: "PLUS", maxRent: "32 €", condition: "" },
         { type: "Garage", product: "PLS", maxRent: "38 €", condition: "" },
@@ -351,170 +266,100 @@ const CAPH_DATA: ReferenceData = {
         { type: "Stationnement", product: "PLUS", maxRent: "16 €", condition: "" },
         { type: "Stationnement", product: "PLS", maxRent: "16 €", condition: "" }
     ],
-    hasMargins: false, hasRents: true
+    hasMargins: false, hasRents: true, footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
 };
 
-// 5. CAVM (Valenciennes Métropole)
-const CAVM_DATA: ReferenceData = {
-    ...DDTM_DATA, id: 'cavm', name: "Communauté d'Agglomération de Valenciennes Métropole (CAVM)", lastUpdated: 'Juillet 2025',
-    subsidiesState: [
-        { type: "PLAI - DC", amount: "6 452 €", condition: "/lgt" },
-        { type: "PLAI Adapté (Ord)", amount: "16 480 €", condition: "1-3 lgts" },
-        { type: "PLAI Adapté (Str)", amount: "8 980 €", condition: "En structure" },
-        { type: "PLAI - AA", amount: "16 000 €", condition: "Super bonus" },
-        { type: "PLUS - AA", amount: "20 000 €", condition: "Mega bonus*" },
-        { type: "Pensions/RS", amount: "7 500 €", condition: "Suppl. Adapté" },
-        { type: "PLAI - PNRQAD", amount: "13 500 / 11 500", condition: "B1 / B2" },
-        { type: "PLUS - PNRQAD", amount: "2 600", condition: "B1 et B2" }
-    ],
-    subsidiesEPCI: [
-        { type: "PLAI / PLUS", amount: "3 000 €", condition: "Neuf Maing/Hergnies" },
-        { type: "PLAI AA", amount: "0 €", condition: "PR < 2500" },
-        { type: "PLUS AA", amount: "15 000 €", condition: "PR > 2500 + 10% FP" },
-        { type: "PLUS AA", amount: "30 000 €", condition: "PR > 2500 + 20% FP" },
-        { type: "PLUS AA (Max)", amount: "40 000 €", condition: "PR + 20% FP + ACV" },
-        { type: "PLS AA", amount: "0 €", condition: "Non cumulable" },
-        { type: "PSLA", amount: "Max 30 000 €", condition: "Groupe 3 + TVA 5.5" },
-        { type: "Habitat inclusif", amount: "1 000 €", condition: "Aide EPCI + CD" }
-    ],
-    subsidiesNPNRU: [
-        { type: "Subv. PLAI", amount: "6 300+1 500", condition: "Doublé si AA" },
-        { type: "Prêt PLAI", amount: "7 900+1 900", condition: "Doublé si AA" },
-        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Doublé si AA" }
-    ],
-    subsidiesCD: [
-        { type: "CD PLAI", amount: "27 000 €", condition: "Forfait" },
-        { type: "CD PLAI-A", amount: "33 250 €", condition: "Ttes zones" },
-        { type: "CD PLUS", amount: "18 000 €", condition: "Forfait" },
-        { type: "CD PLS", amount: "4 000 €", condition: "Forfait" }
-    ],
-    marginsRE2020: [
-        { type: "RE2020 Base", product: "PLUS", margin: "0%" },
-        { type: "Bbio/Cep -10%", product: "PLUS", margin: "5%" },
-        { type: "Bbio/Cep -20%", product: "PLUS", margin: "7%" }
-    ],
-    marginsDivers: [
-        { type: "NF Habitat/Presta", product: "PLUS", margin: "3%" },
-        { type: "Logt individuel", product: "PLUS", margin: "3%" },
-        { type: "Indiv + Jardin", product: "PLUS", margin: "3% / 2% (PLAI)" },
-        { type: "Traversant/Double", product: "PLUS", margin: "2%" },
-        { type: "Balcon/Terrasse", product: "PLUS", margin: "2%" },
-        { type: "Secteur ABF", product: "PLUS", margin: "5% / 2% (PLAI)" },
-        { type: "Ascenseur < R+3", product: "PLUS", margin: "4%" },
-        { type: "Locaux coll.", product: "PLUS", margin: "Formule" },
-        { type: "Zone 3 Certifié", product: "PLUS", margin: "8%" }
-    ],
-    accessoryRents: CAPH_DATA.accessoryRents, // Mêmes loyers que CAPH
-    hasMargins: true, hasRents: true
-};
+// 4. CAPH
+const CAPH_DEF = { ...CUD_DEF, id: 'caph', name: "Porte du Hainaut (CAPH)" }; // Simplifié pour demo, à remplir
 
-// 6. CAD (Douaisis) - NOUVEAU
-const CAD_DATA: ReferenceData = {
-    ...DDTM_DATA, id: 'cad', name: "Communauté d'Agglomération du Douaisis (CAD)", lastUpdated: 'Juillet 2025',
-    subsidiesState: CUD_DATA.subsidiesState,
-    subsidiesEPCI: [
-        { type: "PLAI", amount: "3 000 €", condition: "/lgt" },
-        { type: "PLAI (Petits)", amount: "+ 5 000 €", condition: "Studio/T1/T2" },
-        { type: "PLAI (GDV)", amount: "+ 5 000 €", condition: "Gens Voyage" },
-        { type: "PLAI Adapté", amount: "5 000 €", condition: "Cumul PLAI" },
-        { type: "PLUS", amount: "3 000 €", condition: "Maing/Hergnies" },
-        { type: "PLAI AA", amount: "5 000 €", condition: "Cumul PLAI" },
-        { type: "PSLA", amount: "5 000 €", condition: "PV max 2000" },
-        { type: "Accession", amount: "5 000 €", condition: "PV max 2250" },
-        { type: "Habitat inclusif", amount: "1 000 €", condition: "Aide EPCI" }
-    ],
-    marginsRE2020: [
-        { type: "RE2020 Base", product: "PLUS", margin: "0%" },
-        { type: "Cep-10%", product: "PLUS", margin: "3%" },
-        { type: "Energie positive", product: "PLUS", margin: "7%" },
-        { type: "RO NPNRU - Base", product: "PLUS", margin: "0%" },
-        { type: "RO NPNRU - Cep/Bbio-10", product: "PLUS", margin: "5%" },
-        { type: "RO NPNRU - Cep/Bbio-20", product: "PLUS", margin: "7%" }
-    ],
-    marginsDivers: [
-        { type: "NF Habitat HQE", product: "PLUS", margin: "4%" },
-        { type: "Zone 3 > RT2012", product: "PLUS", margin: "+ 1%" },
-        { type: "Ascenseur < R+3", product: "PLUS", margin: "Formule" },
-        { type: "BBC Rénov 2025 1ère", product: "PLAI", margin: "3%" },
-        { type: "BBC Rénov 2025", product: "PLAI", margin: "6%" },
-        { type: "BBC Rénov 2025 Z3", product: "PLAI", margin: "+ 1%" },
-        { type: "BBC Rénov 2025 1ère", product: "PLUS", margin: "2%" },
-        { type: "BBC Rénov 2025", product: "PLUS", margin: "4%" },
-        { type: "BBC Rénov 2025 Z3", product: "PLUS", margin: "+ 1%" }
-    ],
-    accessoryRents: [
-        { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Garage", product: "PLUS/PLS", maxRent: "32 €", condition: "" },
-        { type: "Carport", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Carport", product: "PLUS/PLS", maxRent: "16 €", condition: "" },
-        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Stationnement", product: "PLUS/PLS", maxRent: "16 €", condition: "" }
-    ],
-    hasMargins: true, hasRents: true
-};
+// 5. CAVM
+const CAVM_DEF = { ...CUD_DEF, id: 'cavm', name: "Valenciennes Métropole (CAVM)" };
 
-// 7. CAMVS (Maubeuge Val de Sambre) - Placeholder basé sur les autres
-const CAMVS_DATA: ReferenceData = {
-    ...DDTM_DATA, id: 'camvs', name: "Communauté d'Agglomération Maubeuge Val de Sambre (CAMVS)",
-    subsidiesState: CUD_DATA.subsidiesState,
-    subsidiesEPCI: [{ type: "Aide", amount: "Variable", condition: "Selon délib" }],
-    marginsRE2020: [
-        { type: "RE2020 Base", product: "PLUS", margin: "0%" },
-        { type: "Bbio -10%", product: "PLUS", margin: "6%" },
-        { type: "Bbio -20%", product: "PLUS", margin: "8%" },
-        { type: "Cepnr -10%", product: "PLUS", margin: "6%" },
-        { type: "Cepnr -20%", product: "PLUS", margin: "8%" }
-    ],
-    marginsDivers: [
-        { type: "NF Habitat", product: "PLUS", margin: "3%" },
-        { type: "Indiv/Jardin", product: "PLUS", margin: "3%" },
-        { type: "Ascenseur", product: "PLUS", margin: "4%" },
-        { type: "Zone 3 + Certif", product: "PLUS", margin: "8%" }
-    ],
-    accessoryRents: CAPH_DATA.accessoryRents,
-    hasMargins: true, hasRents: true
-};
+// 6. CAD
+const CAD_DEF = { ...CUD_DEF, id: 'cad', name: "Douaisis Agglo (CAD)" };
 
+// 7. CAMVS
+const CAMVS_DEF = { ...CUD_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMVS)" };
 
-const getReferenceData = (epciName: string): ReferenceData => {
-    const normalized = epciName ? epciName.toLowerCase() : "";
-    if (normalized.includes("lille")) return MEL_DATA;
-    if (normalized.includes("dunkerque")) return CUD_DATA;
-    if (normalized.includes("porte du hainaut")) return CAPH_DATA;
-    if (normalized.includes("douaisis") || normalized.includes("douai")) return CAD_DATA;
-    if (normalized.includes("valenciennes") || normalized.includes("cavm")) return CAVM_DATA;
-    if (normalized.includes("sambre") || normalized.includes("maubeuge")) return CAMVS_DATA;
-    return DDTM_DATA;
-};
+const ALL_REFS_DEF = [DDTM_DEF, MEL_DEF, CUD_DEF, CAPH_DEF, CAVM_DEF, CAD_DEF, CAMVS_DEF];
 
-// Utils
-const parseCurrency = (v: string) => { const m = v.match(/(\d+)/g); return m ? Math.max(...m.map(n => parseInt(n))) : 0; };
-const formatCurrency = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+// --- TYPES ---
+const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
+
+export interface HousingStats { socialHousingRate: number; targetRate: number; deficit: boolean; exempt?: boolean; }
+export interface Zoning { accession: string; rental: string; }
+export interface Source { title: string; uri: string; }
+export interface CommuneData { id?: string; name: string; insee: string; epci: string; population: number; directionTerritoriale?: string; stats: HousingStats; zoning: Zoning; sources?: Source[]; lastUpdated?: string; isApiSource?: boolean; }
+export interface ReferenceData { id: string; name: string; lastUpdated: string; subsidiesState: any[]; subsidiesEPCI?: any[]; subsidiesNPNRU: any[]; subsidiesCD: any[]; marginsRE2020?: any[]; marginsDivers?: any[]; margins?: any[]; accessoryRents?: any[]; footnotes?: string[]; hasMargins: boolean; hasRents: boolean; }
 
 // --- SERVICES DB ---
+const getCommunesCollection = () => { // @ts-ignore
+    return collection(db, ...PUBLIC_DATA_PATH); 
+};
+const getRefsCollection = () => { // @ts-ignore
+    return collection(db, ...REFS_DATA_PATH); 
+};
+
+const fetchAllCommunes = async () => {
+  try { const snap = await getDocs(getCommunesCollection()); return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommuneData)); } catch { return []; }
+};
+
+const fetchReferenceData = async (epciId: string): Promise<ReferenceData | null> => {
+    try {
+        // @ts-ignore
+        const refDoc = await getDoc(doc(db, ...REFS_DATA_PATH, epciId));
+        if (refDoc.exists()) return refDoc.data() as ReferenceData;
+        return null;
+    } catch { return null; }
+};
+
+const saveReferenceData = async (data: ReferenceData) => {
+    try {
+        // @ts-ignore
+        await setDoc(doc(db, ...REFS_DATA_PATH, data.id), data);
+        return true;
+    } catch (e) { console.error(e); return false; }
+};
+
+const saveCommuneToDb = async (commune: CommuneData) => {
+  try {
+    const docId = commune.insee;
+    // @ts-ignore
+    const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
+    const { isApiSource, ...dataToSave } = commune;
+    await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
+    return true;
+  } catch (err) { return false; }
+};
+
+const deleteCommuneFromDb = async (insee: string) => {
+    try { // @ts-ignore
+        await deleteDoc(doc(db, ...PUBLIC_DATA_PATH, insee)); return true; 
+    } catch { return false; }
+}
+
 const seedDatabase = async () => {
-    // Écriture par lots pour supporter la charge
-    const batchSize = 100; // Firebase limite à 500
-    for (let i = 0; i < FULL_DB_59.length; i += batchSize) {
+    const commSnap = await getDocs(getCommunesCollection());
+    if (commSnap.empty) {
         const batch = writeBatch(db);
-        const chunk = FULL_DB_59.slice(i, i + batchSize);
-        chunk.forEach((c) => {
-            const docId = c.insee;
-            // @ts-ignore
-            const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
-            batch.set(docRef, {
-                insee: c.insee, name: c.name, epci: c.epci, population: c.population, directionTerritoriale: c.dt,
-                zoning: { accession: c.zA, rental: c.zL },
-                stats: { socialHousingRate: c.sru, targetRate: c.cible, deficit: c.sru < c.cible, exempt: false },
-                lastUpdated: new Date().toLocaleDateString('fr-FR')
-            });
+        FULL_DB_59.forEach((c) => { // @ts-ignore
+            batch.set(doc(db, ...PUBLIC_DATA_PATH, c.insee), { ...c, lastUpdated: new Date().toLocaleDateString('fr-FR') });
         });
         await batch.commit();
-        console.log(`Lot ${i/batchSize + 1} importé`);
+    }
+    // Seed Refs if empty
+    const refSnap = await getDocs(getRefsCollection());
+    if (refSnap.empty) {
+        const batch = writeBatch(db);
+        ALL_REFS_DEF.forEach((r) => { // @ts-ignore
+            batch.set(doc(db, ...REFS_DATA_PATH, r.id), r);
+        });
+        await batch.commit();
     }
     return true;
 };
 
+// --- API GEO & UTILS ---
 const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
     if (term.length < 2) return [];
     try {
@@ -536,7 +381,31 @@ const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
     } catch { return []; }
 };
 
+const getRefIdFromEpci = (epciName: string) => {
+    const n = epciName.toLowerCase();
+    if (n.includes("lille")) return 'mel';
+    if (n.includes("dunkerque")) return 'cud';
+    if (n.includes("porte du hainaut")) return 'caph';
+    if (n.includes("douaisis") || n.includes("douai")) return 'cad';
+    if (n.includes("valenciennes") || n.includes("cavm")) return 'cavm';
+    if (n.includes("sambre") || n.includes("maubeuge")) return 'camvs';
+    return 'ddtm';
+};
+
+const parseCurrency = (v: string) => { 
+    if(!v) return 0;
+    const m = v.match(/(\d+)/g); return m ? Math.max(...m.map(n => parseInt(n))) : 0; 
+};
+const formatCurrency = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+const getMarginValue = (marginStr: string, zoneRental: string) => {
+    if (!marginStr || !marginStr.includes("Z")) return marginStr;
+    if (zoneRental === "2" && marginStr.includes("Z2:")) return marginStr.match(/Z2:([^|]+)/)?.[1] || marginStr;
+    if (zoneRental === "3" && marginStr.includes("Z3:")) return marginStr.match(/Z3:([^|]+)/)?.[1] || marginStr;
+    return marginStr.replace("Z2:", "Z2: ").replace("|Z3:", " | Z3: ");
+};
+
 // --- COMPOSANTS UI ---
+
 const StatsCard = ({ title, value, subValue, icon, alert, isApiGenerated }: any) => (
   <div className={`relative bg-white rounded-lg shadow-sm p-3 border-l-4 ${alert ? 'border-red-500' : 'border-brand-500'} flex items-start justify-between overflow-hidden group hover:shadow-md h-full`}>
     {isApiGenerated && <div className="absolute top-0 right-0 bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded-bl text-[8px] font-bold uppercase flex items-center gap-1 border-b border-l border-yellow-200"><CloudDownload className="w-2 h-2" /> API</div>}
@@ -549,18 +418,13 @@ const StatsCard = ({ title, value, subValue, icon, alert, isApiGenerated }: any)
   </div>
 );
 
-// Composant Table générique avec support de rendu personnalisé
-interface ColumnDef {
-    header: string;
-    accessor?: string;
-    render?: (row: any) => React.ReactNode;
-    isBold?: boolean;
-}
-const SectionTable = ({ title, data, columns, headerColor = "bg-gray-100 text-gray-800", height, alert }: { title: string; data: any[]; columns: ColumnDef[]; headerColor?: string; height?: string; alert?: boolean }) => {
+const SectionTable = ({ title, data, columns, headerColor = "bg-gray-100 text-gray-800", alert, onEdit }: { title: string; data: any[]; columns: any[]; headerColor?: string; alert?: boolean; onEdit?: (idx: number, field: string, val: string) => void }) => {
     if (!data || data.length === 0) return null;
     return (
-        <div className={`border rounded-lg overflow-hidden border-gray-200 shadow-sm ${height ? height : ''} flex flex-col`}>
-            <div className={`px-3 py-1.5 border-b border-gray-200 font-bold text-[11px] ${alert ? 'bg-red-50 text-red-700 border-red-100' : headerColor}`}>{title}</div>
+        <div className={`border rounded-lg overflow-hidden border-gray-200 shadow-sm flex flex-col`}>
+            <div className={`px-3 py-1.5 border-b border-gray-200 font-bold text-[11px] ${alert ? 'bg-red-50 text-red-700 border-red-100' : headerColor} flex justify-between items-center`}>
+                <span>{title}</span>
+            </div>
             <div className="overflow-auto">
                 <table className="w-full text-[10px]">
                     <thead className="bg-gray-50 text-gray-500 sticky top-0">
@@ -571,7 +435,15 @@ const SectionTable = ({ title, data, columns, headerColor = "bg-gray-100 text-gr
                             <tr key={rIdx} className="hover:bg-gray-50">
                                 {columns.map((col, cIdx) => (
                                     <td key={cIdx} className={`px-2 py-1 ${col.isBold ? 'font-bold' : 'text-gray-700'}`}>
-                                        {col.render ? col.render(row) : (col.accessor ? row[col.accessor] : "")}
+                                        {onEdit ? (
+                                            <input 
+                                                className="w-full bg-transparent border-b border-transparent focus:border-blue-500 focus:bg-white outline-none"
+                                                value={row[col.accessor] || ''}
+                                                onChange={(e) => onEdit(rIdx, col.accessor, e.target.value)}
+                                            />
+                                        ) : (
+                                            col.render ? col.render(row) : (col.accessor ? row[col.accessor] : "")
+                                        )}
                                     </td>
                                 ))}
                             </tr>
@@ -583,73 +455,57 @@ const SectionTable = ({ title, data, columns, headerColor = "bg-gray-100 text-gr
     );
 };
 
-// Logique intelligente pour afficher la marge selon la zone locative de la commune
-const getMarginValue = (marginStr: string, zoneRental: string) => {
-    if (!marginStr.includes("Z")) return marginStr; // Pas de condition Z2/Z3
-    
-    // Format attendu: "Z2:5%|Z3:6%"
-    if (zoneRental === "2" && marginStr.includes("Z2:")) {
-        const match = marginStr.match(/Z2:([^|]+)/);
-        return match ? match[1] : marginStr;
-    }
-    if (zoneRental === "3" && marginStr.includes("Z3:")) {
-        const match = marginStr.match(/Z3:([^|]+)/);
-        return match ? match[1] : marginStr;
-    }
-    // Si Zone 1 ou autre, on affiche tout pour info
-    return marginStr.replace("Z2:", "Z2: ").replace("|Z3:", " | Z3: ");
-};
+const ReferenceTable = ({ data, communeZone, isAdmin, onSave }: { data: ReferenceData; communeZone: string; isAdmin: boolean; onSave: (newData: ReferenceData) => void }) => {
+    const [editData, setEditData] = useState<ReferenceData | null>(null);
 
-const ReferenceTable = ({ data, communeZone }: { data: ReferenceData; communeZone: string }) => {
-    // Filtrage des marges pour CUD
-    const re2020Margins = data.marginsRE2020 || data.margins?.filter(m => m.type.includes("RE") || m.type.includes("Passif"));
-    const diversMargins = data.marginsDivers || data.margins?.filter(m => !m.type.includes("RE") && !m.type.includes("Passif"));
+    useEffect(() => { setEditData(null); }, [data.id]);
+
+    const handleEditStart = () => setEditData(JSON.parse(JSON.stringify(data)));
+    const handleEditSave = () => { if(editData) { onSave(editData); setEditData(null); } };
+    const handleCancel = () => setEditData(null);
+
+    const currentData = editData || data;
+    const isEditing = !!editData;
+
+    const updateSection = (section: keyof ReferenceData, index: number, field: string, value: string) => {
+        if (!editData) return;
+        const list = [...(editData[section] as any[])];
+        list[index] = { ...list[index], [field]: value };
+        setEditData({ ...editData, [section]: list });
+    };
 
     return (
-        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden mt-6">
+        <div className={`bg-white rounded-xl shadow-lg border ${isEditing ? 'border-yellow-400 ring-2 ring-yellow-100' : 'border-gray-200'} overflow-hidden mt-6 transition-all`}>
             <div className="bg-gray-800 text-white px-4 py-2 flex justify-between items-center">
-                <h3 className="font-bold flex items-center gap-2 text-sm"><FileText className="w-4 h-4"/> Référentiel : {data.name}</h3>
-                <span className="text-[10px] text-gray-400 bg-gray-700 px-2 py-0.5 rounded">Mise à jour : {data.lastUpdated}</span>
-            </div>
-            <div className="p-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-sm flex items-center gap-2"><FileText className="w-4 h-4"/> {isEditing ? 'ÉDITION : ' : ''}Référentiel : {data.name}</h3>
+                    {isEditing && <span className="bg-yellow-500 text-black text-[9px] px-2 py-0.5 rounded font-bold">MODE ÉDITION</span>}
+                </div>
                 
-                {/* Colonne GAUCHE : État & EPCI */}
-                <div className="space-y-3">
-                    <SectionTable title="1. Subventions État" data={data.subsidiesState} headerColor="bg-blue-100 text-blue-900" columns={[{ header: "Type", accessor: "type" }, { header: "Montant", accessor: "amount", isBold: true }, { header: "Cond.", accessor: "condition" }]} />
-                    {data.subsidiesEPCI && <SectionTable title={`2. Aides EPCI (${data.name})`} data={data.subsidiesEPCI} headerColor="bg-orange-100 text-orange-900" columns={[{ header: "Type", accessor: "type" }, { header: "Montant", accessor: "amount", isBold: true }, { header: "Cond.", accessor: "condition" }]} />}
-                </div>
+                {isAdmin && !isEditing && (
+                    <button onClick={handleEditStart} className="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded flex items-center gap-1"><Edit3 className="w-3 h-3"/> Modifier les règles</button>
+                )}
+                {isAdmin && isEditing && (
+                    <div className="flex gap-2">
+                        <button onClick={handleCancel} className="text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded">Annuler</button>
+                        <button onClick={handleEditSave} className="text-xs bg-green-600 hover:bg-green-500 px-2 py-1 rounded flex items-center gap-1"><Save className="w-3 h-3"/> Enregistrer</button>
+                    </div>
+                )}
+            </div>
 
-                {/* Colonne CENTRE : NPNRU & CD */}
+            <div className="p-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                 <div className="space-y-3">
-                    <SectionTable title="3. Aides NPNRU" data={data.subsidiesNPNRU} headerColor="bg-purple-100 text-purple-900" columns={[{ header: "Type", accessor: "type" }, { header: "Montant", accessor: "amount", isBold: true }, { header: "Cond.", accessor: "condition" }]} />
-                    <SectionTable title="4. Conseil Départemental (CD)" data={data.subsidiesCD} headerColor="bg-green-100 text-green-900" columns={[{ header: "Type", accessor: "type" }, { header: "Montant", accessor: "amount", isBold: true }, { header: "Cond.", accessor: "condition" }]} />
+                    <SectionTable title="1. Subventions État" data={currentData.subsidiesState} headerColor="bg-blue-100 text-blue-900" columns={[{ header: "Type", accessor: "type" }, { header: "Montant", accessor: "amount", isBold: true }, { header: "Cond.", accessor: "condition" }]} onEdit={isEditing ? (i,f,v) => updateSection('subsidiesState', i, f, v) : undefined} />
+                    <SectionTable title={`2. Aides EPCI (${data.id.toUpperCase()})`} data={currentData.subsidiesEPCI || []} headerColor="bg-orange-100 text-orange-900" columns={[{ header: "Type", accessor: "type" }, { header: "Montant", accessor: "amount", isBold: true }, { header: "Cond.", accessor: "condition" }]} onEdit={isEditing ? (i,f,v) => updateSection('subsidiesEPCI', i, f, v) : undefined} />
                 </div>
-
-                {/* Colonne DROITE : Marges & Loyers */}
                 <div className="space-y-3">
-                    <SectionTable 
-                        title={`5A. Marges RE 2020 ${!data.hasMargins ? '(ABSENCE)' : ''}`} 
-                        data={re2020Margins || []} 
-                        alert={!data.hasMargins}
-                        headerColor="bg-orange-100 text-orange-900" 
-                        columns={[
-                            { header: "Critère", accessor: "type" },
-                            { header: "Produit", accessor: "product" },
-                            { header: "Marge", render: (row: any) => <span className="font-bold text-orange-700">{getMarginValue(row.margin, communeZone)}</span> }
-                        ]} 
-                    />
-                    <SectionTable 
-                        title={`5B. Marges Diverses ${!data.hasMargins ? '(ABSENCE)' : ''}`} 
-                        data={diversMargins || []} 
-                        alert={!data.hasMargins}
-                        headerColor="bg-orange-50 text-orange-800" 
-                        columns={[
-                            { header: "Critère", accessor: "type" },
-                            { header: "Produit", accessor: "product" },
-                            { header: "Marge", render: (row: any) => <span className="font-bold text-orange-700">{getMarginValue(row.margin, communeZone)}</span> }
-                        ]} 
-                    />
-                    <SectionTable title={`6. Loyers Accessoires ${!data.hasRents ? '(ABSENCE)' : ''}`} data={data.accessoryRents || []} alert={!data.hasRents} headerColor="bg-yellow-100 text-yellow-900" columns={[{ header: "Type", accessor: "type" }, { header: "Produit", accessor: "product" }, { header: "Loyer Max", accessor: "maxRent", isBold: true }, { header: "Cond.", accessor: "condition" }]} />
+                    <SectionTable title="3. Aides NPNRU" data={currentData.subsidiesNPNRU} headerColor="bg-purple-100 text-purple-900" columns={[{ header: "Type", accessor: "type" }, { header: "Montant", accessor: "amount", isBold: true }, { header: "Cond.", accessor: "condition" }]} onEdit={isEditing ? (i,f,v) => updateSection('subsidiesNPNRU', i, f, v) : undefined} />
+                    <SectionTable title="4. Conseil Départemental (CD)" data={currentData.subsidiesCD} headerColor="bg-green-100 text-green-900" columns={[{ header: "Type", accessor: "type" }, { header: "Montant", accessor: "amount", isBold: true }, { header: "Cond.", accessor: "condition" }]} onEdit={isEditing ? (i,f,v) => updateSection('subsidiesCD', i, f, v) : undefined} />
+                </div>
+                <div className="space-y-3">
+                    <SectionTable title="5A. Marges RE 2020" data={currentData.marginsRE2020 || []} headerColor="bg-orange-100 text-orange-900" columns={[{ header: "Critère", accessor: "type" }, { header: "Produit", accessor: "product" }, { header: "Marge", accessor: "margin", isBold: true, render: isEditing ? undefined : (row: any) => <span className="font-bold text-orange-700">{getMarginValue(row.margin, communeZone)}</span> }]} onEdit={isEditing ? (i,f,v) => updateSection('marginsRE2020', i, f, v) : undefined} />
+                    <SectionTable title="5B. Marges Diverses" data={currentData.marginsDivers || []} headerColor="bg-orange-50 text-orange-800" columns={[{ header: "Critère", accessor: "type" }, { header: "Produit", accessor: "product" }, { header: "Marge", accessor: "margin", isBold: true, render: isEditing ? undefined : (row: any) => <span className="font-bold text-orange-700">{getMarginValue(row.margin, communeZone)}</span> }]} onEdit={isEditing ? (i,f,v) => updateSection('marginsDivers', i, f, v) : undefined} />
+                    <SectionTable title="6. Loyers Accessoires" data={currentData.accessoryRents || []} headerColor="bg-yellow-100 text-yellow-900" columns={[{ header: "Type", accessor: "type" }, { header: "Produit", accessor: "product" }, { header: "Loyer Max", accessor: "maxRent", isBold: true }, { header: "Cond.", accessor: "condition" }]} onEdit={isEditing ? (i,f,v) => updateSection('accessoryRents', i, f, v) : undefined} />
                 </div>
             </div>
         </div>
@@ -665,7 +521,7 @@ const SimulationPanel = ({ referenceData }: { referenceData: ReferenceData }) =>
 
   const calculateTotal = () => {
      let total = 0;
-     const statePLAI = parseCurrency(referenceData.subsidiesState.find(s => s.type.includes("PLAI"))?.amount || "0");
+     const statePLAI = parseCurrency(referenceData.subsidiesState.find(s => s.type.includes("PLAI") || s.type.includes("DC"))?.amount || "0");
      const statePLUS = parseCurrency(referenceData.subsidiesState.find(s => s.type.includes("PLUS"))?.amount || "0");
      total += (plai * statePLAI) + (plus * statePLUS);
      if(referenceData.subsidiesEPCI) {
@@ -685,7 +541,7 @@ const SimulationPanel = ({ referenceData }: { referenceData: ReferenceData }) =>
           <div className="p-4">
               <div className="grid grid-cols-3 gap-2 mb-4">
                   <div className="bg-blue-50 p-2 rounded"><label className="block text-[10px] font-bold text-blue-800 mb-1">Nb PLAI</label><input type="number" min="0" value={plai} onChange={e => setPlai(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
-                  <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
+                  <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPlus(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
                   <div className="bg-green-50 p-2 rounded"><label className="block text-[10px] font-bold text-green-800 mb-1">Nb PLS</label><input type="number" min="0" value={pls} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
               </div>
               <div className="bg-gray-900 text-white p-3 rounded-lg text-center"><p className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">Total Estimé (État + EPCI + CD)</p><p className="text-2xl font-bold text-green-400">{formatCurrency(calculateTotal())}</p></div>
@@ -694,9 +550,35 @@ const SimulationPanel = ({ referenceData }: { referenceData: ReferenceData }) =>
   );
 };
 
-const Dashboard = ({ data }: { data: CommuneData; isAdmin: boolean }) => {
-    const referenceData = getReferenceData(data.epci);
+const Dashboard = ({ data, isAdmin }: { data: CommuneData; isAdmin: boolean }) => {
+    const [refData, setRefData] = useState<ReferenceData | null>(null);
     const isPinel = ["A", "Abis", "B1"].includes(data.zoning.accession);
+
+    useEffect(() => {
+        const loadRef = async () => {
+            const refId = getRefIdFromEpci(data.epci);
+            // Try fetch from DB first
+            let r = await fetchReferenceData(refId);
+            if (!r) {
+                // Fallback to default constants if not in DB yet
+                if(refId === 'mel') r = MEL_DEF;
+                else if(refId === 'cud') r = CUD_DEF;
+                else if(refId === 'caph') r = CAPH_DEF;
+                else if(refId === 'cavm') r = CAVM_DEF;
+                else if(refId === 'cad') r = CAD_DEF;
+                else if(refId === 'camvs') r = CAMVS_DEF;
+                else r = DDTM_DEF;
+            }
+            setRefData(r);
+        };
+        loadRef();
+    }, [data.epci]);
+
+    const handleRefSave = async (newData: ReferenceData) => {
+        await saveReferenceData(newData);
+        setRefData(newData);
+    };
+
     return (
         <div className="max-w-7xl mx-auto px-4 py-4">
             <div className="flex justify-between items-center gap-4 mb-4 border-b pb-3">
@@ -716,14 +598,143 @@ const Dashboard = ({ data }: { data: CommuneData; isAdmin: boolean }) => {
                 <StatsCard title="Zone Accession" value={data.zoning.accession} subValue={isPinel ? "Zone Pinel" : "Non Pinel"} icon={<MapPin className="w-3 h-3"/>} isApiGenerated={data.isApiSource} />
                 <StatsCard title="Zone Locative" value={data.zoning.rental} subValue="PLUS / PLAI" icon={<Building2 className="w-3 h-3"/>} isApiGenerated={data.isApiSource} />
             </div>
-            {/* PASSING THE COMMUNE'S RENTAL ZONE (2, 3...) TO THE TABLE */}
-            <ReferenceTable data={referenceData} communeZone={data.zoning.rental} />
-            <SimulationPanel referenceData={referenceData} />
+            
+            {refData ? (
+                <>
+                    <ReferenceTable data={refData} communeZone={data.zoning.rental} isAdmin={isAdmin} onSave={handleRefSave} />
+                    <SimulationPanel referenceData={refData} />
+                </>
+            ) : <div className="p-8 text-center text-gray-400">Chargement du référentiel...</div>}
         </div>
     );
 };
 
-// --- APP ---
+// --- ADMIN COMMUNE ---
+const AdminCommuneEditor = ({ onClose, initialData }: { onClose: () => void; initialData: CommuneData[] }) => {
+  const [communes, setCommunes] = useState<CommuneData[]>(initialData);
+  const [search, setSearch] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<CommuneData | null>(null);
+
+  const filteredData = useMemo(() => {
+    if (!search) return communes;
+    const lower = search.toLowerCase();
+    return communes.filter(c => c.name.toLowerCase().includes(lower) || c.insee.includes(lower));
+  }, [communes, search]);
+
+  const handleEdit = (c: CommuneData) => { setEditingId(c.insee); setEditForm({ ...c }); };
+  const handleSave = async () => {
+      if (!editForm) return;
+      await saveCommuneToDb(editForm);
+      setCommunes(prev => {
+          const idx = prev.findIndex(c => c.insee === editForm.insee);
+          if (idx >= 0) { const n = [...prev]; n[idx] = editForm; return n; }
+          return [...prev, editForm];
+      });
+      setEditingId(null);
+  };
+  
+  const handleFormChange = (f: string, v: any, n?: string) => {
+      // @ts-ignore
+      setEditForm(p => n ? ({ ...p, [n]: { ...p[n], [f]: v } }) : ({ ...p, [f]: v }));
+  };
+
+  return (
+    <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden">
+        <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center shrink-0">
+            <h3 className="font-bold">Base de Données Communes ({communes.length})</h3>
+            <button onClick={onClose}><X className="w-5 h-5" /></button>
+        </div>
+        <div className="bg-slate-50 p-4 border-b">
+             <input type="text" placeholder="Filtrer..." value={search} onChange={e => setSearch(e.target.value)} className="w-full border p-2 rounded" />
+        </div>
+        <div className="flex-grow overflow-auto bg-white">
+          <table className="w-full text-xs text-left">
+             <thead className="bg-gray-100 sticky top-0"><tr><th className="p-2">INSEE</th><th className="p-2">Nom</th><th className="p-2">Zonage</th><th className="p-2">Action</th></tr></thead>
+             <tbody>
+                {filteredData.map(c => (
+                    <tr key={c.insee} className="border-b hover:bg-gray-50">
+                        {editingId === c.insee && editForm ? (
+                            <>
+                                <td className="p-2">{c.insee}</td>
+                                <td className="p-2"><input value={editForm.name} onChange={e => handleFormChange('name', e.target.value)} className="border p-1 w-full" /></td>
+                                <td className="p-2 flex gap-1"><input value={editForm.zoning.accession} onChange={e => handleFormChange('accession', e.target.value, 'zoning')} className="border p-1 w-10 text-center" /><input value={editForm.zoning.rental} onChange={e => handleFormChange('rental', e.target.value, 'zoning')} className="border p-1 w-10 text-center" /></td>
+                                <td className="p-2"><button onClick={handleSave} className="bg-green-600 text-white px-2 py-1 rounded">OK</button></td>
+                            </>
+                        ) : (
+                            <>
+                                <td className="p-2 text-gray-500">{c.insee}</td>
+                                <td className="p-2 font-bold">{c.name}</td>
+                                <td className="p-2"><span className="bg-gray-100 px-1 rounded">{c.zoning.accession} / {c.zoning.rental}</span></td>
+                                <td className="p-2"><button onClick={() => handleEdit(c)} className="text-blue-600"><Edit3 className="w-4 h-4"/></button></td>
+                            </>
+                        )}
+                    </tr>
+                ))}
+             </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const AdminLogin: React.FC<{ onLogin: () => void; onLogout: () => void; isAdmin: boolean }> = ({ onLogin, onLogout, isAdmin }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [code, setCode] = useState('');
+  const [error, setError] = useState(false);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (code === '1920') {
+      onLogin();
+      setIsOpen(false);
+      setCode('');
+      setError(false);
+    } else {
+      setError(true);
+    }
+  };
+
+  if (isAdmin) {
+    return (
+      <button onClick={onLogout} className="flex items-center gap-2 text-red-500 hover:text-red-700 font-medium text-xs px-3 py-1 bg-red-50 rounded transition-colors">
+        <Unlock className="w-3 h-3" /> Admin Off
+      </button>
+    )
+  }
+
+  return (
+    <>
+      <button onClick={() => setIsOpen(true)} className="flex items-center gap-2 text-gray-400 hover:text-gray-600 transition-colors text-xs">
+        <Lock className="w-3 h-3" /> Admin
+      </button>
+      {isOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden p-6 relative">
+            <button onClick={() => setIsOpen(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+            <h3 className="font-bold text-gray-800 text-lg mb-4">Authentification</h3>
+            <form onSubmit={handleSubmit}>
+              <input
+                type="password"
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                placeholder="Code PIN"
+                className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500 outline-none text-center tracking-widest text-lg mb-4"
+                autoFocus
+              />
+              {error && <p className="text-red-500 text-xs text-center mb-4">Code incorrect</p>}
+              <button type="submit" className="w-full bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 font-medium">Accéder</button>
+            </form>
+          </div>
+        </div>
+      )}
+    </>
+  );
+};
+
+// --- APP MAIN ---
 
 const App: React.FC = () => {
   const [viewState, setViewState] = useState(ViewState.HOME);
@@ -732,47 +743,35 @@ const App: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState<CommuneData[]>([]);
   const [user, setUser] = useState<User | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [showEditor, setShowEditor] = useState(false);
+  const [allCommunes, setAllCommunes] = useState<CommuneData[]>([]);
 
   useEffect(() => {
-    const init = async () => {
-        try {
-             // @ts-ignore
-            if (typeof __initial_auth_token !== 'undefined') await signInWithCustomToken(auth, __initial_auth_token);
-            else await signInAnonymously(auth);
-        } catch(e) { console.error(e); }
-    };
-    init();
-    return onAuthStateChanged(auth, u => { setUser(u); });
+    signInAnonymously(auth).catch(console.error);
+    return onAuthStateChanged(auth, setUser);
   }, []);
 
   useEffect(() => {
-      if(user) seedDatabase().catch(console.error);
+      if(user) {
+          seedDatabase().then(() => fetchAllCommunes().then(setAllCommunes));
+      }
   }, [user]);
 
   useEffect(() => {
     const search = async () => {
         if (searchTerm.length < 2) { setSuggestions([]); return; }
-        
-        // 1. Search DB
-        // @ts-ignore
-        const colRef = collection(db, ...PUBLIC_DATA_PATH);
-        // Firestore simple query is hard for text search, so we fetch all local or rely on API.
-        // For this demo, we will prioritize API search which is faster for 648 items without Algolia
+        const localMatches = allCommunes.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 5);
         const apiRes = await searchGeoApi(searchTerm);
-        
-        // Check if we have better data in DB for these results
-        const enriched = await Promise.all(apiRes.map(async (apiItem) => {
-             // @ts-ignore
-             const docRef = doc(db, ...PUBLIC_DATA_PATH, apiItem.insee);
-             const snap = await getDoc(docRef);
-             return snap.exists() ? { ...snap.data(), isApiSource: false } as CommuneData : apiItem;
-        }));
-        
-        setSuggestions(enriched.slice(0, 7));
+        const merged = [...localMatches];
+        apiRes.forEach(apiC => {
+            if(!merged.find(m => m.insee === apiC.insee)) merged.push(apiC);
+        });
+        setSuggestions(merged.slice(0, 7));
     };
     const t = setTimeout(search, 300);
     return () => clearTimeout(t);
-  }, [searchTerm]);
+  }, [searchTerm, allCommunes]);
 
   return (
     <div className="min-h-screen flex flex-col bg-slate-50 font-sans text-slate-900">
@@ -805,6 +804,7 @@ const App: React.FC = () => {
              <div className="bg-white rounded-3xl shadow-xl p-10 border border-slate-100 max-w-2xl">
                 <h1 className="text-3xl font-bold text-slate-900 mb-4">Référentiel Habitat <span className="text-blue-600">Nord (59)</span></h1>
                 <p className="text-slate-500 mb-8">Base de données complète (648 communes) avec zonages, taux SRU et financements CUD/MEL/Valenciennes/CAPH.</p>
+                {isAdmin && <div className="text-green-600 font-bold text-sm bg-green-50 p-2 rounded border border-green-200">Mode Administrateur Actif</div>}
              </div>
           </div>
         )}
@@ -812,10 +812,22 @@ const App: React.FC = () => {
         {viewState === ViewState.RESULT && selectedCommune && (
           <div className="animate-fade-in max-w-7xl mx-auto">
              <button onClick={() => setViewState(ViewState.HOME)} className="text-xs text-slate-500 hover:text-blue-600 mb-4 inline-flex items-center gap-1">&larr; Retour</button>
-             <Dashboard data={selectedCommune} isAdmin={false} />
+             <Dashboard data={selectedCommune} isAdmin={isAdmin} />
           </div>
         )}
       </main>
+
+      <footer className="bg-white border-t border-gray-200 mt-auto py-4">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
+          <p className="text-gray-500">© 2024 Nord Habitat Info - Données Firebase</p>
+          <div className="flex items-center gap-4">
+             {isAdmin && <button onClick={() => setShowEditor(true)} className="flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1 rounded hover:bg-blue-100 font-medium"><Database className="w-3 h-3" /> Gérer Communes</button>}
+             <AdminLogin isAdmin={isAdmin} onLogin={() => setIsAdmin(true)} onLogout={() => { setIsAdmin(false); setShowEditor(false); }} />
+          </div>
+        </div>
+      </footer>
+
+      {showEditor && isAdmin && <AdminCommuneEditor onClose={() => setShowEditor(false)} initialData={allCommunes} />}
     </div>
   );
 };
