@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  FileSearch, Search, MapPin, Building2, Users, AlertTriangle, 
-  CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
-  X, Calculator, ChevronUp, ChevronDown, CheckSquare, Square, 
+  Search, MapPin, Building2, Users, AlertTriangle, 
+  CheckCircle, Save, Database, Plus, Trash2, Lock, Unlock, 
+  X, Calculator, ChevronUp, CheckSquare, Square, 
   Landmark, BadgeCheck, MapPinned, Target, CloudDownload, FileText, Edit3
 } from 'lucide-react';
 
@@ -231,7 +231,7 @@ const CUD_DEF = {
     subsidiesNPNRU: [
         { type: "Subv. PLAI", amount: "6 300+1 500", condition: "Doublé si AA" },
         { type: "Prêt PLAI", amount: "7 900+1 900", condition: "Doublé si AA" },
-        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Doublé si AA" }
+        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Double si AA" }
     ],
     subsidiesCD: [
         { type: "CD PLAI", amount: "27 000 €", condition: "Forfait" },
@@ -790,12 +790,34 @@ const AdminCommuneEditor = ({ onClose, initialData }: { onClose: () => void; ini
     });
   };
 
+  const handleDelete = async (insee: string) => {
+      if(confirm("Supprimer définitivement cette commune ?")) {
+          const success = await deleteCommuneFromDb(insee);
+          if(success) {
+              setCommunes(prev => prev.filter(c => c.insee !== insee));
+          }
+      }
+  };
+
+  const handleCreate = () => {
+      const newCommune: CommuneData = {
+          insee: "", name: "Nouvelle Commune", epci: "", population: 0, directionTerritoriale: "",
+          stats: { socialHousingRate: 0, targetRate: 25, deficit: false, exempt: false },
+          zoning: { accession: "", rental: "" }
+      };
+      setEditForm(newCommune);
+      setEditingId("NEW");
+  };
+
   return (
     <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden">
         <div className="bg-slate-900 text-white px-6 py-4 flex justify-between items-center shrink-0">
             <h3 className="font-bold">Base de Données Communes ({communes.length})</h3>
-            <button onClick={onClose}><X className="w-5 h-5" /></button>
+            <div className="flex gap-2">
+                <button onClick={handleCreate} className="bg-green-600 text-white px-3 py-1 rounded text-xs flex items-center gap-1"><Plus className="w-4 h-4"/> Ajouter</button>
+                <button onClick={onClose}><X className="w-5 h-5" /></button>
+            </div>
         </div>
         <div className="bg-slate-50 p-4 border-b">
              <input type="text" placeholder="Filtrer..." value={search} onChange={e => setSearch(e.target.value)} className="w-full border p-2 rounded" />
@@ -804,6 +826,17 @@ const AdminCommuneEditor = ({ onClose, initialData }: { onClose: () => void; ini
           <table className="w-full text-xs text-left">
              <thead className="bg-gray-100 sticky top-0"><tr><th className="p-2">INSEE</th><th className="p-2">Nom</th><th className="p-2">Zonage</th><th className="p-2">Action</th></tr></thead>
              <tbody>
+                {editingId === "NEW" && editForm && (
+                     <tr className="bg-green-50 border-b">
+                        <td className="p-2"><input className="w-full border p-1" value={editForm.insee} onChange={e => handleFormChange('insee', e.target.value)} placeholder="Code INSEE" /></td>
+                        <td className="p-2"><input className="w-full border p-1" value={editForm.name} onChange={e => handleFormChange('name', e.target.value)} placeholder="Nom" /></td>
+                        <td className="p-2" colSpan={1}></td>
+                        <td className="p-2 flex gap-1">
+                            <button onClick={handleSave} className="bg-green-600 text-white px-2 py-1 rounded">Save</button>
+                            <button onClick={() => setEditingId(null)} className="text-gray-500 px-2">X</button>
+                        </td>
+                     </tr>
+                )}
                 {filteredData.map(c => (
                     <tr key={c.insee} className="border-b hover:bg-gray-50">
                         {editingId === c.insee && editForm ? (
@@ -818,7 +851,10 @@ const AdminCommuneEditor = ({ onClose, initialData }: { onClose: () => void; ini
                                 <td className="p-2 text-gray-500">{c.insee}</td>
                                 <td className="p-2 font-bold">{c.name}</td>
                                 <td className="p-2"><span className="bg-gray-100 px-1 rounded">{c.zoning.accession} / {c.zoning.rental}</span></td>
-                                <td className="p-2"><button onClick={() => handleEdit(c)} className="text-blue-600"><Edit3 className="w-4 h-4"/></button></td>
+                                <td className="p-2 flex gap-2">
+                                    <button onClick={() => handleEdit(c)} className="text-blue-600"><Edit3 className="w-4 h-4"/></button>
+                                    <button onClick={() => handleDelete(c.insee)} className="text-red-600"><Trash2 className="w-4 h-4"/></button>
+                                </td>
                             </>
                         )}
                     </tr>
@@ -913,6 +949,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const search = async () => {
         if (searchTerm.length < 2) { setSuggestions([]); return; }
+        setLoading(true);
         const localMatches = allCommunes.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 5);
         const apiRes = await searchGeoApi(searchTerm);
         const merged = [...localMatches];
@@ -920,6 +957,7 @@ const App: React.FC = () => {
             if(!merged.find(m => m.insee === apiC.insee)) merged.push(apiC);
         });
         setSuggestions(merged.slice(0, 7));
+        setLoading(false);
     };
     const t = setTimeout(search, 300);
     return () => clearTimeout(t);
@@ -936,6 +974,7 @@ const App: React.FC = () => {
           <div className="flex-grow relative max-w-xl">
             <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Rechercher une commune..." className="w-full pl-9 pr-4 py-2 bg-slate-100 border-transparent focus:bg-white border focus:border-blue-500 rounded-lg outline-none transition-all shadow-inner text-sm" />
             <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
+            {loading && <div className="absolute right-3 top-2.5"><Loader2 className="w-4 h-4 animate-spin text-blue-500"/></div>}
             {suggestions.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden z-50">
                     {suggestions.map(s => (
