@@ -12,7 +12,7 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch 
 } from 'firebase/firestore';
 import { 
-  getAuth, signInAnonymously, onAuthStateChanged, User 
+  getAuth, signInAnonymously, onAuthStateChanged
 } from 'firebase/auth';
 
 /**
@@ -256,30 +256,200 @@ const CUD_DEF = {
         { type: "BBC Rénov 2024", product: "PLUS", margin: "Z2:4%|Z3:7%" }
     ],
     accessoryRents: [
-        { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Garage", product: "PLUS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
-        { type: "Garage", product: "PLS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
-        { type: "Carport", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Carport", product: "PLUS/PLS", maxRent: "25 €", condition: "" },
-        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Stationnement", product: "PLUS/PLS", maxRent: "18 €", condition: "" }
+        { type: "Garage", product: "PLAI", maxRent: "15 €", condition: "" },
+        { type: "Garage", product: "PLUS", maxRent: "32 €", condition: "" },
+        { type: "Garage", product: "PLS", maxRent: "38 €", condition: "" },
+        { type: "Carport", product: "PLAI", maxRent: "10€/12€", condition: "Local/Fermé" },
+        { type: "Carport", product: "PLUS", maxRent: "20€/25€", condition: "Local/Fermé" },
+        { type: "Carport", product: "PLS", maxRent: "20€/25€", condition: "Local/Fermé" },
+        { type: "Stationnement", product: "PLAI", maxRent: "8 €", condition: "" },
+        { type: "Stationnement", product: "PLUS", maxRent: "16 €", condition: "" },
+        { type: "Stationnement", product: "PLS", maxRent: "16 €", condition: "" }
     ],
     hasMargins: false, hasRents: true, footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
 };
 
 // 4. CAPH
-const CAPH_DEF = { ...CUD_DEF, id: 'caph', name: "Porte du Hainaut (CAPH)" };
+const CAPH_DEF = { ...CUD_DEF, id: 'caph', name: "Porte du Hainaut (CAPH)",
+    subsidiesState: CUD_DEF.subsidiesState,
+    subsidiesEPCI: [
+        { type: "PLAI (Zone U)", amount: "3 000 €", condition: "/lgt" },
+        { type: "PLAI (Passif)", amount: "+ 3 000 €", condition: "/lgt" },
+        { type: "PLAI (T2 40%)", amount: "+ 1 000 €", condition: "/lgt" },
+        { type: "PLAI (Vertueux)", amount: "+ 1 500 €", condition: "/lgt" },
+        { type: "PLAI (Cuve)", amount: "+ 500 €", condition: "/cuve" },
+        { type: "PLAI AA", amount: "5 000 €", condition: "Max 25k/opé" },
+        { type: "PLUS (Zone U)", amount: "1 000 €", condition: "/lgt" },
+        { type: "PLUS (Passif)", amount: "+ 3 000 €", condition: "/lgt" },
+        { type: "PLUS (T2 40%)", amount: "+ 1 000 €", condition: "/lgt" },
+        { type: "PLUS (Vertueux)", amount: "+ 1 500 €", condition: "/lgt" },
+        { type: "PLUS AA", amount: "+ 1 500 €", condition: "Vertueux" },
+        { type: "PLS (Passif)", amount: "+ 1 000 €", condition: "/lgt" },
+        { type: "PLS (T2 40%)", amount: "+ 1 000 €", condition: "/lgt" },
+        { type: "PLS (Vertueux)", amount: "+ 1 500 €", condition: "/lgt" }
+    ],
+    marginsRE2020: [
+        { type: "RE2020 Base", product: "PLUS", margin: "0%" },
+        { type: "Bbio -10%", product: "PLUS", margin: "0%" },
+        { type: "Bbio -20%", product: "PLUS", margin: "0%" },
+        { type: "Cepnr -10%", product: "PLUS", margin: "0%" },
+        { type: "Cepnr -20%", product: "PLUS", margin: "0%" },
+        { type: "Passif", product: "PLUS", margin: "0%" },
+        { type: "Energie +", product: "PLUS", margin: "0%" }
+    ],
+    marginsDivers: [
+        { type: "NF Habitat/Presta", product: "PLUS", margin: "0%" },
+        { type: "Logt individuel", product: "PLUS", margin: "0%" },
+        { type: "Indiv + Jardin", product: "PLUS", margin: "0%" },
+        { type: "Traversant", product: "PLUS", margin: "0%" },
+        { type: "Balcon/Terrasse", product: "PLUS", margin: "0%" },
+        { type: "Secteur ABF", product: "PLUS", margin: "0%" },
+        { type: "Ascenseur < R+3", product: "PLUS", margin: "0%" },
+        { type: "Locaux coll.", product: "PLUS", margin: "0%" },
+        { type: "Zone 3 Certifié", product: "PLUS", margin: "0%" }
+    ],
+    accessoryRents: [
+        { type: "Garage", product: "PLAI", maxRent: "15 €", condition: "" },
+        { type: "Garage", product: "PLUS", maxRent: "32 €", condition: "" },
+        { type: "Garage", product: "PLS", maxRent: "38 €", condition: "" },
+        { type: "Carport", product: "PLAI", maxRent: "10€/12€", condition: "Local/Fermé" },
+        { type: "Carport", product: "PLUS", maxRent: "20€/25€", condition: "Local/Fermé" },
+        { type: "Carport", product: "PLS", maxRent: "20€/25€", condition: "Local/Fermé" },
+        { type: "Stationnement", product: "PLAI", maxRent: "8 €", condition: "" },
+        { type: "Stationnement", product: "PLUS", maxRent: "16 €", condition: "" },
+        { type: "Stationnement", product: "PLS", maxRent: "16 €", condition: "" }
+    ],
+};
 
 // 5. CAVM
-const CAVM_DEF = { ...CUD_DEF, id: 'cavm', name: "Valenciennes Métropole (CAVM)" };
+const CAVM_DEF = { ...CUD_DEF, id: 'cavm', name: "Valenciennes Métropole (CAVM)",
+    subsidiesState: [
+        { type: "PLAI - DC", amount: "6 452 €", condition: "/lgt" },
+        { type: "PLAI Adapté (Ord)", amount: "16 480 €", condition: "1-3 lgts" },
+        { type: "PLAI Adapté (Str)", amount: "8 980 €", condition: "En structure" },
+        { type: "PLAI - AA", amount: "16 000 €", condition: "Super bonus" },
+        { type: "PLUS - AA", amount: "20 000 €", condition: "Mega bonus*" },
+        { type: "Pensions/RS", amount: "7 500 €", condition: "Suppl. Adapté" },
+        { type: "PLAI - PNRQAD", amount: "13 500 / 11 500", condition: "B1 / B2" },
+        { type: "PLUS - PNRQAD", amount: "2 600", condition: "B1 et B2" }
+    ],
+    subsidiesEPCI: [
+        { type: "PLAI / PLUS", amount: "3 000 €", condition: "Neuf Maing/Hergnies" },
+        { type: "PLAI AA", amount: "0 €", condition: "PR < 2500" },
+        { type: "PLUS AA", amount: "15 000 €", condition: "PR > 2500 + 10% FP" },
+        { type: "PLUS AA", amount: "30 000 €", condition: "PR > 2500 + 20% FP" },
+        { type: "PLUS AA (Max)", amount: "40 000 €", condition: "PR + 20% FP + ACV" },
+        { type: "PLS AA", amount: "0 €", condition: "Non cumulable" },
+        { type: "PSLA", amount: "Max 30 000 €", condition: "Groupe 3 + TVA 5.5" },
+        { type: "Habitat inclusif", amount: "1 000 €", condition: "Aide EPCI + CD" }
+    ],
+    marginsRE2020: [
+        { type: "RE2020 Base", product: "PLUS", margin: "0%" },
+        { type: "Bbio/Cep -10%", product: "PLUS", margin: "5%" },
+        { type: "Bbio/Cep -20%", product: "PLUS", margin: "7%" }
+    ],
+    marginsDivers: [
+        { type: "NF Habitat/Presta", product: "PLUS", margin: "3%" },
+        { type: "Logt individuel", product: "PLUS", margin: "3%" },
+        { type: "Indiv + Jardin", product: "PLUS", margin: "3% / 2% (PLAI)" },
+        { type: "Traversant/Double", product: "PLUS", margin: "2%" },
+        { type: "Balcon/Terrasse", product: "PLUS", margin: "2%" },
+        { type: "Secteur ABF", product: "PLUS", margin: "5% / 2% (PLAI)" },
+        { type: "Ascenseur < R+3", product: "PLUS", margin: "4%" },
+        { type: "Locaux coll.", product: "PLUS", margin: "Formule" },
+        { type: "Zone 3 Certifié", product: "PLUS", margin: "8%" }
+    ],
+    accessoryRents: CAPH_DEF.accessoryRents, // Mêmes loyers que CAPH
+};
 
 // 6. CAD
-const CAD_DEF = { ...CUD_DEF, id: 'cad', name: "Douaisis Agglo (CAD)" };
+const CAD_DEF = { ...CUD_DEF, id: 'cad', name: "Douaisis Agglo (CAD)",
+    subsidiesState: CUD_DEF.subsidiesState,
+    subsidiesEPCI: [
+        { type: "PLAI", amount: "3 000 €", condition: "/lgt" },
+        { type: "PLAI (Petits)", amount: "+ 5 000 €", condition: "Studio/T1/T2" },
+        { type: "PLAI (GDV)", amount: "+ 5 000 €", condition: "Gens Voyage" },
+        { type: "PLAI Adapté", amount: "5 000 €", condition: "Cumul PLAI" },
+        { type: "PLUS", amount: "3 000 €", condition: "Maing/Hergnies" },
+        { type: "PLAI AA", amount: "5 000 €", condition: "Cumul PLAI" },
+        { type: "PSLA", amount: "5 000 €", condition: "PV max 2000" },
+        { type: "Accession", amount: "5 000 €", condition: "PV max 2250" },
+        { type: "Habitat inclusif", amount: "1 000 €", condition: "Aide EPCI" }
+    ],
+    marginsRE2020: [
+        { type: "RE2020 Base", product: "PLUS", margin: "0%" },
+        { type: "Cep-10%", product: "PLUS", margin: "3%" },
+        { type: "Energie positive", product: "PLUS", margin: "7%" },
+        { type: "RO NPNRU - Base", product: "PLUS", margin: "0%" },
+        { type: "RO NPNRU - Cep/Bbio-10", product: "PLUS", margin: "5%" },
+        { type: "RO NPNRU - Cep/Bbio-20", product: "PLUS", margin: "7%" }
+    ],
+    marginsDivers: [
+        { type: "NF Habitat HQE", product: "PLUS", margin: "4%" },
+        { type: "Zone 3 > RT2012", product: "PLUS", margin: "+ 1%" },
+        { type: "Ascenseur < R+3", product: "PLUS", margin: "Formule" },
+        { type: "BBC Rénov 2025 1ère", product: "PLAI", margin: "3%" },
+        { type: "BBC Rénov 2025", product: "PLAI", margin: "6%" },
+        { type: "BBC Rénov 2025 Z3", product: "PLAI", margin: "+ 1%" },
+        { type: "BBC Rénov 2025 1ère", product: "PLUS", margin: "2%" },
+        { type: "BBC Rénov 2025", product: "PLUS", margin: "4%" },
+        { type: "BBC Rénov 2025 Z3", product: "PLUS", margin: "+ 1%" }
+    ],
+    accessoryRents: [
+        { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Garage", product: "PLUS/PLS", maxRent: "32 €", condition: "" },
+        { type: "Carport", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Carport", product: "PLUS/PLS", maxRent: "16 €", condition: "" },
+        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Stationnement", product: "PLUS/PLS", maxRent: "16 €", condition: "" }
+    ],
+};
 
 // 7. CAMVS
-const CAMVS_DEF = { ...CUD_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMVS)" };
+const CAMVS_DEF = { ...CUD_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMVS)",
+    subsidiesState: CUD_DEF.subsidiesState,
+    subsidiesEPCI: [{ type: "Aide", amount: "Variable", condition: "Selon délib" }],
+    marginsRE2020: [
+        { type: "RE2020 Base", product: "PLUS", margin: "0%" },
+        { type: "Bbio -10%", product: "PLUS", margin: "6%" },
+        { type: "Bbio -20%", product: "PLUS", margin: "8%" },
+        { type: "Cepnr -10%", product: "PLUS", margin: "6%" },
+        { type: "Cepnr -20%", product: "PLUS", margin: "8%" }
+    ],
+    marginsDivers: [
+        { type: "NF Habitat", product: "PLUS", margin: "3%" },
+        { type: "Indiv/Jardin", product: "PLUS", margin: "3%" },
+        { type: "Ascenseur", product: "PLUS", margin: "4%" },
+        { type: "Zone 3 + Certif", product: "PLUS", margin: "8%" }
+    ],
+    accessoryRents: CAPH_DEF.accessoryRents,
+};
 
 const ALL_REFS_DEF = [DDTM_DEF, MEL_DEF, CUD_DEF, CAPH_DEF, CAVM_DEF, CAD_DEF, CAMVS_DEF];
+
+// --- UTILS ---
+const getRefIdFromEpci = (epciName: string) => {
+    const n = epciName.toLowerCase();
+    if (n.includes("lille")) return 'mel';
+    if (n.includes("dunkerque")) return 'cud';
+    if (n.includes("porte du hainaut")) return 'caph';
+    if (n.includes("douaisis") || n.includes("douai")) return 'cad';
+    if (n.includes("valenciennes") || n.includes("cavm")) return 'cavm';
+    if (n.includes("sambre") || n.includes("maubeuge")) return 'camvs';
+    return 'ddtm';
+};
+
+const parseCurrency = (v: string) => { 
+    if(!v) return 0;
+    const m = v.match(/(\d+)/g); return m ? Math.max(...m.map(n => parseInt(n))) : 0; 
+};
+const formatCurrency = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+const getMarginValue = (marginStr: string, zoneRental: string) => {
+    if (!marginStr || !marginStr.includes("Z")) return marginStr;
+    if (zoneRental === "2" && marginStr.includes("Z2:")) return marginStr.match(/Z2:([^|]+)/)?.[1] || marginStr;
+    if (zoneRental === "3" && marginStr.includes("Z3:")) return marginStr.match(/Z3:([^|]+)/)?.[1] || marginStr;
+    return marginStr.replace("Z2:", "Z2: ").replace("|Z3:", " | Z3: ");
+};
 
 // --- TYPES ---
 const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
@@ -377,29 +547,6 @@ const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
             };
         });
     } catch { return []; }
-};
-
-const getRefIdFromEpci = (epciName: string) => {
-    const n = epciName.toLowerCase();
-    if (n.includes("lille")) return 'mel';
-    if (n.includes("dunkerque")) return 'cud';
-    if (n.includes("porte du hainaut")) return 'caph';
-    if (n.includes("douaisis") || n.includes("douai")) return 'cad';
-    if (n.includes("valenciennes") || n.includes("cavm")) return 'cavm';
-    if (n.includes("sambre") || n.includes("maubeuge")) return 'camvs';
-    return 'ddtm';
-};
-
-const parseCurrency = (v: string) => { 
-    if(!v) return 0;
-    const m = v.match(/(\d+)/g); return m ? Math.max(...m.map(n => parseInt(n))) : 0; 
-};
-const formatCurrency = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
-const getMarginValue = (marginStr: string, zoneRental: string) => {
-    if (!marginStr || !marginStr.includes("Z")) return marginStr;
-    if (zoneRental === "2" && marginStr.includes("Z2:")) return marginStr.match(/Z2:([^|]+)/)?.[1] || marginStr;
-    if (zoneRental === "3" && marginStr.includes("Z3:")) return marginStr.match(/Z3:([^|]+)/)?.[1] || marginStr;
-    return marginStr.replace("Z2:", "Z2: ").replace("|Z3:", " | Z3: ");
 };
 
 // --- COMPOSANTS UI ---
@@ -539,7 +686,7 @@ const SimulationPanel = ({ referenceData }: { referenceData: ReferenceData }) =>
           <div className="p-4">
               <div className="grid grid-cols-3 gap-2 mb-4">
                   <div className="bg-blue-50 p-2 rounded"><label className="block text-[10px] font-bold text-blue-800 mb-1">Nb PLAI</label><input type="number" min="0" value={plai} onChange={e => setPlai(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
-                  <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPlus(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
+                  <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
                   <div className="bg-green-50 p-2 rounded"><label className="block text-[10px] font-bold text-green-800 mb-1">Nb PLS</label><input type="number" min="0" value={pls} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
               </div>
               <div className="bg-gray-900 text-white p-3 rounded-lg text-center"><p className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">Total Estimé (État + EPCI + CD)</p><p className="text-2xl font-bold text-green-400">{formatCurrency(calculateTotal())}</p></div>
