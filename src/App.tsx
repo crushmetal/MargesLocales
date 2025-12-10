@@ -3,7 +3,7 @@ import {
   Search, MapPin, Building2, Users, AlertTriangle, 
   CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
   X, Calculator, ChevronUp, Landmark, BadgeCheck, MapPinned, Target, 
-  CloudDownload, FileText, Edit3
+  CloudDownload, FileText, Edit3, CheckSquare, Square
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -12,7 +12,7 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch 
 } from 'firebase/firestore';
 import { 
-  getAuth, signInAnonymously, onAuthStateChanged, User 
+  getAuth, signInAnonymously, onAuthStateChanged 
 } from 'firebase/auth';
 
 /**
@@ -21,6 +21,7 @@ import {
  * ==========================================
  */
 
+// --- CONFIGURATION FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyDOBFXdCfEH0IJ_OsIH7rHijYT_NEY1FGA",
   authDomain: "marges-locales59.firebaseapp.com",
@@ -30,6 +31,7 @@ const firebaseConfig = {
   appId: "1:1077584427724:web:39e529e17d4021110e6069"
 };
 
+// Initialisation
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -255,8 +257,8 @@ const CUD_DEF = {
     ],
     accessoryRents: [
         { type: "Garage", product: "PLAI", maxRent: "15 €", condition: "" },
-        { type: "Garage", product: "PLUS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
-        { type: "Garage", product: "PLS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
+        { type: "Garage", product: "PLUS", maxRent: "32 €", condition: "" },
+        { type: "Garage", product: "PLS", maxRent: "38 €", condition: "" },
         { type: "Carport", product: "PLAI", maxRent: "10€/12€", condition: "Local/Fermé" },
         { type: "Carport", product: "PLUS", maxRent: "20€/25€", condition: "Local/Fermé" },
         { type: "Carport", product: "PLS", maxRent: "20€/25€", condition: "Local/Fermé" },
@@ -672,7 +674,7 @@ const SimulationPanel = ({ referenceData }: { referenceData: ReferenceData }) =>
          total += ((plai + plus) * epciAmount);
      }
      const cdPLAI = parseCurrency(referenceData.subsidiesCD.find(s => s.type.includes("PLAI"))?.amount || "0");
-     total += (plai * cdPLAI) + (plus * (cdPLAI/2)); 
+     if(includeCD) total += (plai * cdPLAI) + (plus * (cdPLAI/2)); 
      return total;
   };
 
@@ -687,7 +689,12 @@ const SimulationPanel = ({ referenceData }: { referenceData: ReferenceData }) =>
                   <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPlus(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
                   <div className="bg-green-50 p-2 rounded"><label className="block text-[10px] font-bold text-green-800 mb-1">Nb PLS</label><input type="number" min="0" value={pls} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
               </div>
-              <div className="bg-gray-900 text-white p-3 rounded-lg text-center"><p className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">Total Estimé (État + EPCI + CD)</p><p className="text-2xl font-bold text-green-400">{formatCurrency(calculateTotal())}</p></div>
+              <div className="flex items-center gap-2 mb-4 justify-center">
+                  <button onClick={() => setIncludeCD(!includeCD)} className={`flex items-center gap-2 px-3 py-1 rounded text-xs border ${includeCD ? 'bg-green-100 border-green-300 text-green-800' : 'bg-gray-50 border-gray-300 text-gray-500'}`}>
+                      {includeCD ? <CheckSquare className="w-3 h-3"/> : <Square className="w-3 h-3"/>} Aides Département
+                  </button>
+              </div>
+              <div className="bg-gray-900 text-white p-3 rounded-lg text-center"><p className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">Total Estimé</p><p className="text-2xl font-bold text-green-400">{formatCurrency(calculateTotal())}</p></div>
           </div>
       </div>
   );
