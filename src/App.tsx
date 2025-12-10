@@ -12,7 +12,7 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch 
 } from 'firebase/firestore';
 import { 
-  getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, User 
+  getAuth, signInAnonymously, onAuthStateChanged, User 
 } from 'firebase/auth';
 
 /**
@@ -31,7 +31,7 @@ const firebaseConfig = {
   appId: "1:1077584427724:web:39e529e17d4021110e6069"
 };
 
-// Initialisation de Firebase
+// Initialisation de Firebase avec vos clés
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -40,7 +40,7 @@ const db = getFirestore(app);
 const APP_ID = 'nord-habitat-v1'; 
 const PUBLIC_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'communes'];
 
-// --- BASE DE DONNÉES MASSIVE ---
+// --- BASE DE DONNÉES MASSIVE (Extension Douaisis & Valenciennois incluse) ---
 const FULL_DB_59 = [
   // --- DT FLANDRE GRAND LITTORAL ---
   { insee: "59183", name: "Dunkerque", epci: "CU de Dunkerque", population: 86788, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 35.0, cible: 25 },
@@ -685,7 +685,7 @@ const SimulationPanel = ({ referenceData }: { referenceData: ReferenceData }) =>
           <div className="p-4">
               <div className="grid grid-cols-3 gap-2 mb-4">
                   <div className="bg-blue-50 p-2 rounded"><label className="block text-[10px] font-bold text-blue-800 mb-1">Nb PLAI</label><input type="number" min="0" value={plai} onChange={e => setPlai(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
-                  <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPlus(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
+                  <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
                   <div className="bg-green-50 p-2 rounded"><label className="block text-[10px] font-bold text-green-800 mb-1">Nb PLS</label><input type="number" min="0" value={pls} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
               </div>
               <div className="bg-gray-900 text-white p-3 rounded-lg text-center"><p className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">Total Estimé (État + EPCI + CD)</p><p className="text-2xl font-bold text-green-400">{formatCurrency(calculateTotal())}</p></div>
