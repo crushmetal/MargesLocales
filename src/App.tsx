@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, MapPin, Building2, Users, AlertTriangle, 
   CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
-  X, Calculator, ChevronUp, Landmark, BadgeCheck, MapPinned, Target, 
-  CloudDownload, FileText, Edit3, CheckSquare, Square
+  X, Calculator, ChevronUp, CheckSquare, Square, 
+  Landmark, BadgeCheck, MapPinned, Target, CloudDownload, FileText, Edit3
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -12,7 +12,7 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch 
 } from 'firebase/firestore';
 import { 
-  getAuth, signInAnonymously, onAuthStateChanged 
+  getAuth, signInAnonymously, onAuthStateChanged, User 
 } from 'firebase/auth';
 
 /**
@@ -257,8 +257,8 @@ const CUD_DEF = {
     ],
     accessoryRents: [
         { type: "Garage", product: "PLAI", maxRent: "15 €", condition: "" },
-        { type: "Garage", product: "PLUS", maxRent: "32 €", condition: "" },
-        { type: "Garage", product: "PLS", maxRent: "38 €", condition: "" },
+        { type: "Garage", product: "PLUS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
+        { type: "Garage", product: "PLS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
         { type: "Carport", product: "PLAI", maxRent: "10€/12€", condition: "Local/Fermé" },
         { type: "Carport", product: "PLUS", maxRent: "20€/25€", condition: "Local/Fermé" },
         { type: "Carport", product: "PLS", maxRent: "20€/25€", condition: "Local/Fermé" },
@@ -686,7 +686,7 @@ const SimulationPanel = ({ referenceData }: { referenceData: ReferenceData }) =>
           <div className="p-4">
               <div className="grid grid-cols-3 gap-2 mb-4">
                   <div className="bg-blue-50 p-2 rounded"><label className="block text-[10px] font-bold text-blue-800 mb-1">Nb PLAI</label><input type="number" min="0" value={plai} onChange={e => setPlai(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
-                  <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPlus(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
+                  <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
                   <div className="bg-green-50 p-2 rounded"><label className="block text-[10px] font-bold text-green-800 mb-1">Nb PLS</label><input type="number" min="0" value={pls} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
               </div>
               <div className="flex items-center gap-2 mb-4 justify-center">
@@ -954,6 +954,7 @@ const App: React.FC = () => {
   useEffect(() => {
     const search = async () => {
         if (searchTerm.length < 2) { setSuggestions([]); return; }
+        setLoading(true);
         const localMatches = allCommunes.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 5);
         const apiRes = await searchGeoApi(searchTerm);
         const merged = [...localMatches];
@@ -961,6 +962,7 @@ const App: React.FC = () => {
             if(!merged.find(m => m.insee === apiC.insee)) merged.push(apiC);
         });
         setSuggestions(merged.slice(0, 7));
+        setLoading(false);
     };
     const t = setTimeout(search, 300);
     return () => clearTimeout(t);
@@ -977,6 +979,7 @@ const App: React.FC = () => {
           <div className="flex-grow relative max-w-xl">
             <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Rechercher une commune..." className="w-full pl-9 pr-4 py-2 bg-slate-100 border-transparent focus:bg-white border focus:border-blue-500 rounded-lg outline-none transition-all shadow-inner text-sm" />
             <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
+            {loading && <div className="absolute right-3 top-2.5"><Loader2 className="w-4 h-4 animate-spin text-blue-500"/></div>}
             {suggestions.length > 0 && (
                 <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden z-50">
                     {suggestions.map(s => (
@@ -996,7 +999,7 @@ const App: React.FC = () => {
           <div className="flex flex-col items-center justify-center h-full animate-fade-in text-center mt-12">
              <div className="bg-white rounded-3xl shadow-xl p-10 border border-slate-100 max-w-2xl">
                 <h1 className="text-3xl font-bold text-slate-900 mb-4">Référentiel Habitat <span className="text-blue-600">Nord (59)</span></h1>
-                <p className="text-slate-500 mb-8">Base de données complète (648 communes) avec zonages, taux SRU et financements CUD/MEL/Valenciennes/CAPH.</p>
+                <p className="text-slate-500 mb-8">Base de données complète avec édition des référentiels en ligne.</p>
                 {isAdmin && <div className="text-green-600 font-bold text-sm bg-green-50 p-2 rounded border border-green-200">Mode Administrateur Actif</div>}
              </div>
           </div>
