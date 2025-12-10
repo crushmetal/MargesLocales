@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
-  FileSearch, Search, MapPin, Building2, Users, AlertTriangle, 
+  Search, MapPin, Building2, Users, AlertTriangle, 
   CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
   X, Calculator, ChevronUp, ChevronDown, CheckSquare, Square, 
   Landmark, BadgeCheck, MapPinned, Target, CloudDownload, FileText, Edit3
@@ -12,7 +12,7 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch 
 } from 'firebase/firestore';
 import { 
-  getAuth, signInAnonymously, onAuthStateChanged
+  getAuth, signInAnonymously, onAuthStateChanged 
 } from 'firebase/auth';
 
 /**
@@ -21,7 +21,7 @@ import {
  * ==========================================
  */
 
-// --- CONFIGURATION FIREBASE ---
+// --- CONFIGURATION FIREBASE (VOS CLÉS) ---
 const firebaseConfig = {
   apiKey: "AIzaSyDOBFXdCfEH0IJ_OsIH7rHijYT_NEY1FGA",
   authDomain: "marges-locales59.firebaseapp.com",
@@ -31,7 +31,7 @@ const firebaseConfig = {
   appId: "1:1077584427724:web:39e529e17d4021110e6069"
 };
 
-// Initialisation
+// Initialisation de Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
