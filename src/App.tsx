@@ -12,12 +12,12 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch 
 } from 'firebase/firestore';
 import { 
-  getAuth, signInAnonymously, onAuthStateChanged, User 
+  getAuth, signInAnonymously, onAuthStateChanged 
 } from 'firebase/auth';
 
 /**
  * ==========================================
- * 1. CONFIGURATION & DONNÉES DE MASSE
+ * 1. CONFIGURATION & TYPES
  * ==========================================
  */
 
@@ -40,7 +40,118 @@ const APP_ID = 'nord-habitat-v1';
 const PUBLIC_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'communes'];
 const REFS_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'references'];
 
-// --- DONNÉES DE DÉMARRAGE (SEED) ---
+// --- TYPES ---
+const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
+
+export interface HousingStats { socialHousingRate: number; targetRate: number; deficit: boolean; exempt?: boolean; }
+export interface Zoning { accession: string; rental: string; }
+export interface Source { title: string; uri: string; }
+export interface CommuneData { id?: string; name: string; insee: string; epci: string; population: number; directionTerritoriale?: string; stats: HousingStats; zoning: Zoning; sources?: Source[]; lastUpdated?: string; isApiSource?: boolean; }
+export interface ReferenceData { id: string; name: string; lastUpdated: string; subsidiesState: any[]; subsidiesEPCI?: any[]; subsidiesNPNRU: any[]; subsidiesCD: any[]; marginsRE2020?: any[]; marginsDivers?: any[]; margins?: any[]; accessoryRents?: any[]; footnotes?: string[]; hasMargins: boolean; hasRents: boolean; }
+
+/**
+ * ==========================================
+ * 2. UTILITAIRES (DÉFINIS AVANT LES COMPOSANTS)
+ * ==========================================
+ */
+
+const parseCurrency = (v: string) => { 
+    if(!v) return 0;
+    const m = v.match(/(\d+)/g); return m ? Math.max(...m.map(n => parseInt(n))) : 0; 
+};
+
+const formatCurrency = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+
+const getMarginValue = (marginStr: string, zoneRental: string) => {
+    if (!marginStr || !marginStr.includes("Z")) return marginStr;
+    if (zoneRental === "2" && marginStr.includes("Z2:")) return marginStr.match(/Z2:([^|]+)/)?.[1] || marginStr;
+    if (zoneRental === "3" && marginStr.includes("Z3:")) return marginStr.match(/Z3:([^|]+)/)?.[1] || marginStr;
+    return marginStr.replace("Z2:", "Z2: ").replace("|Z3:", " | Z3: ");
+};
+
+const getRefIdFromEpci = (epciName: string) => {
+    const n = epciName.toLowerCase();
+    if (n.includes("lille")) return 'mel';
+    if (n.includes("dunkerque")) return 'cud';
+    if (n.includes("porte du hainaut")) return 'caph';
+    if (n.includes("douaisis") || n.includes("douai")) return 'cad';
+    if (n.includes("valenciennes") || n.includes("cavm")) return 'cavm';
+    if (n.includes("sambre") || n.includes("maubeuge")) return 'camvs';
+    return 'ddtm';
+};
+
+// --- SERVICES DB ---
+// @ts-ignore
+const getCommunesCollection = () => collection(db, ...PUBLIC_DATA_PATH); 
+// @ts-ignore
+const getRefsCollection = () => collection(db, ...REFS_DATA_PATH); 
+
+const fetchAllCommunes = async () => {
+  try { const snap = await getDocs(getCommunesCollection()); return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommuneData)); } catch { return []; }
+};
+
+const fetchReferenceData = async (epciId: string): Promise<ReferenceData | null> => {
+    try {
+        // @ts-ignore
+        const refDoc = await getDoc(doc(db, ...REFS_DATA_PATH, epciId));
+        if (refDoc.exists()) return refDoc.data() as ReferenceData;
+        return null;
+    } catch { return null; }
+};
+
+const saveReferenceData = async (data: ReferenceData) => {
+    try {
+        // @ts-ignore
+        await setDoc(doc(db, ...REFS_DATA_PATH, data.id), data);
+        return true;
+    } catch (e) { console.error(e); return false; }
+};
+
+const saveCommuneToDb = async (commune: CommuneData) => {
+  try {
+    const docId = commune.insee;
+    // @ts-ignore
+    const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
+    const { isApiSource, ...dataToSave } = commune; 
+    // @ts-ignore
+    delete dataToSave.isApiSource;
+    await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
+    return true;
+  } catch (err) { return false; }
+};
+
+const deleteCommuneFromDb = async (insee: string) => {
+    try { // @ts-ignore
+        await deleteDoc(doc(db, ...PUBLIC_DATA_PATH, insee)); return true; 
+    } catch { return false; }
+}
+
+const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
+    if (term.length < 2) return [];
+    try {
+        const response = await fetch(`https://geo.api.gouv.fr/communes?codeDepartement=59&nom=${term}&fields=nom,code,population,epci&boost=population&limit=5`);
+        const data = await response.json();
+        return data.map((item: any) => {
+            const epciName = item.epci ? item.epci.nom : "Non renseigné";
+            let autoDT = "À définir";
+            if (epciName.includes("Lille") || epciName.includes("Pévèle")) autoDT = "DDTM Métropole";
+            else if (epciName.includes("Dunkerque") || epciName.includes("Flandre")) autoDT = "Flandre Grand Littoral";
+            else if (epciName.includes("Valenciennes") || epciName.includes("Porte du Hainaut") || epciName.includes("Douaisis") || epciName.includes("Cambrai") || epciName.includes("Sambre")) autoDT = "Hainaut - Douaisis - Cambrésis";
+            return {
+                insee: item.code, name: item.nom, population: item.population, epci: epciName, directionTerritoriale: autoDT,
+                stats: { socialHousingRate: 0, targetRate: 20, deficit: false, exempt: false },
+                zoning: { accession: "C", rental: "3" }, // Défaut
+                isApiSource: true
+            };
+        });
+    } catch { return []; }
+};
+
+/**
+ * ==========================================
+ * 3. DONNÉES DE DÉMARRAGE (SEED)
+ * ==========================================
+ */
 const FULL_DB_59 = [
   // --- DT FLANDRE GRAND LITTORAL ---
   { insee: "59183", name: "Dunkerque", epci: "CU de Dunkerque", population: 86788, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 35.0, cible: 25 },
@@ -451,15 +562,6 @@ const getMarginValue = (marginStr: string, zoneRental: string) => {
     return marginStr.replace("Z2:", "Z2: ").replace("|Z3:", " | Z3: ");
 };
 
-// --- TYPES ---
-const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
-
-export interface HousingStats { socialHousingRate: number; targetRate: number; deficit: boolean; exempt?: boolean; }
-export interface Zoning { accession: string; rental: string; }
-export interface Source { title: string; uri: string; }
-export interface CommuneData { id?: string; name: string; insee: string; epci: string; population: number; directionTerritoriale?: string; stats: HousingStats; zoning: Zoning; sources?: Source[]; lastUpdated?: string; isApiSource?: boolean; }
-export interface ReferenceData { id: string; name: string; lastUpdated: string; subsidiesState: any[]; subsidiesEPCI?: any[]; subsidiesNPNRU: any[]; subsidiesCD: any[]; marginsRE2020?: any[]; marginsDivers?: any[]; margins?: any[]; accessoryRents?: any[]; footnotes?: string[]; hasMargins: boolean; hasRents: boolean; }
-
 // --- SERVICES DB ---
 const getCommunesCollection = () => { // @ts-ignore
     return collection(db, ...PUBLIC_DATA_PATH); 
@@ -494,11 +596,11 @@ const saveCommuneToDb = async (commune: CommuneData) => {
     const docId = commune.insee;
     // @ts-ignore
     const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
-    const { isApiSource, ...dataToSave } = commune; // dataToSave will not have isApiSource
-    // Explicitly delete isApiSource to prevent saving it to DB and unused var warning
-    delete (dataToSave as any).isApiSource; 
-    
-    await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
+    const { isApiSource, ...dataToSave } = commune;
+    // Supprimer la propriété isApiSource de l'objet pour qu'elle ne soit pas sauvegardée (sans utiliser delete)
+    const dataForDb = { ...dataToSave }; 
+    // @ts-ignore
+    await setDoc(docRef, { ...dataForDb, lastUpdated: new Date().toLocaleDateString('fr-FR') });
     return true;
   } catch (err) { return false; }
 };
@@ -530,7 +632,7 @@ const seedDatabase = async () => {
     return true;
 };
 
-// --- API GEO & UTILS ---
+// --- API GEO ---
 const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
     if (term.length < 2) return [];
     try {
@@ -685,17 +787,12 @@ const SimulationPanel = ({ referenceData }: { referenceData: ReferenceData }) =>
 
   return (
       <div className="mt-6 bg-white rounded-xl shadow-lg border border-blue-100 overflow-hidden animate-fade-in">
-          <div className="bg-blue-600 px-4 py-2 flex justify-between items-center text-white"><h3 className="font-bold flex items-center gap-2 text-sm"><Calculator className="w-4 h-4"/> Simulateur Rapide</h3><button onClick={() => setIsOpen(false)}><ChevronUp className="w-4 h-4"/></button></div>
+          <div className="bg-blue-600 px-4 py-2 flex justify-between items-center text-white"><h3 className="font-bold flex items-center gap-2 text-sm"><Calculator className="w-4 h-4"/> Simulateur Rapide</h3><div className="flex gap-2"><button onClick={() => setIncludeCD(!includeCD)} className={`p-1 rounded ${includeCD ? 'text-green-600 bg-green-100' : 'text-gray-400 bg-gray-100'}`}>{includeCD ? <CheckSquare className="w-4 h-4"/> : <Square className="w-4 h-4"/>}</button><button onClick={() => setIsOpen(false)}><ChevronUp className="w-4 h-4"/></button></div></div>
           <div className="p-4">
               <div className="grid grid-cols-3 gap-2 mb-4">
                   <div className="bg-blue-50 p-2 rounded"><label className="block text-[10px] font-bold text-blue-800 mb-1">Nb PLAI</label><input type="number" min="0" value={plai} onChange={e => setPlai(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
                   <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPlus(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
                   <div className="bg-green-50 p-2 rounded"><label className="block text-[10px] font-bold text-green-800 mb-1">Nb PLS</label><input type="number" min="0" value={pls} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
-              </div>
-              <div className="flex items-center gap-2 mb-4 justify-center">
-                  <button onClick={() => setIncludeCD(!includeCD)} className={`flex items-center gap-2 px-3 py-1 rounded text-xs border ${includeCD ? 'bg-green-100 border-green-300 text-green-800' : 'bg-gray-50 border-gray-300 text-gray-500'}`}>
-                      {includeCD ? <CheckSquare className="w-3 h-3"/> : <Square className="w-3 h-3"/>} Aides Département
-                  </button>
               </div>
               <div className="bg-gray-900 text-white p-3 rounded-lg text-center"><p className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">Total Estimé</p><p className="text-2xl font-bold text-green-400">{formatCurrency(calculateTotal())}</p></div>
           </div>
