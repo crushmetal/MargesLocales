@@ -10,8 +10,7 @@ import {
 // FIREBASE IMPORTS
 import { initializeApp } from 'firebase/app';
 import { 
-  getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch,
-  query, where, onSnapshot
+  getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch
 } from 'firebase/firestore';
 import { 
   getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken
@@ -19,22 +18,22 @@ import {
 
 /**
  * ==========================================
- * 1. CONFIGURATION & SETUP
+ * 1. CONFIGURATION & TYPES
  * ==========================================
  */
 
-// --- CONFIGURATION FIREBASE (DYNAMIC) ---
+// --- CONFIGURATION FIREBASE DYNAMIQUE ---
 const firebaseConfig = JSON.parse(__firebase_config);
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-// PATHS (Strictly scoped to appId)
-const PUBLIC_DATA_PATH = ['artifacts', appId, 'public', 'data', 'communes'];
-const REFS_DATA_PATH = ['artifacts', appId, 'public', 'data', 'references'];
+// UTILISATION DE L'ID DYNAMIQUE OBLIGATOIRE POUR LES PERMISSIONS
+const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'nord-habitat-v1';
 
-// --- CONSTANTS ---
+const PUBLIC_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'communes'];
+const REFS_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'references'];
+
 const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
 
 /**
@@ -58,9 +57,10 @@ const getMarginValue = (marginStr, zoneRental) => {
     return marginStr.replace("Z2:", "Z2: ").replace("|Z3:", " | Z3: ");
 };
 
+// Normalisation pour éviter les erreurs d'accents (Pévèle vs Pevele)
 const getRefIdFromEpci = (epciName) => {
-    const n = (epciName || "").toLowerCase();
-    if (n.includes("lille") || n.includes("pévelè")) return 'mel';
+    const n = (epciName || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
+    if (n.includes("lille") || n.includes("pevele")) return 'mel';
     if (n.includes("dunkerque")) return 'cud';
     if (n.includes("porte du hainaut")) return 'caph';
     if (n.includes("douaisis") || n.includes("douai")) return 'cad';
@@ -87,8 +87,12 @@ const fetchReferenceData = async (epciId) => {
     try {
         const refDoc = await getDoc(doc(db, ...REFS_DATA_PATH, epciId));
         if (refDoc.exists()) return refDoc.data();
+        console.warn(`Référentiel manquant pour ID: ${epciId}`);
         return null;
-    } catch { return null; }
+    } catch (e) { 
+        console.error("Erreur fetch ref:", e);
+        return null; 
+    }
 };
 
 const saveCommuneToDb = async (commune) => {
@@ -118,9 +122,11 @@ const searchGeoApi = async (term) => {
         return data.map((item) => {
             const epciName = item.epci ? item.epci.nom : "Non renseigné";
             let autoDT = "À définir";
-            if (epciName.includes("Lille") || epciName.includes("Pévèle")) autoDT = "DDTM Métropole";
-            else if (epciName.includes("Dunkerque") || epciName.includes("Flandre")) autoDT = "Flandre Grand Littoral";
-            else if (epciName.includes("Valenciennes") || epciName.includes("Porte du Hainaut") || epciName.includes("Douaisis") || epciName.includes("Cambrai") || epciName.includes("Sambre")) autoDT = "Hainaut - Douaisis - Cambrésis";
+            const n = epciName.toLowerCase();
+            if (n.includes("lille") || n.includes("pévèle")) autoDT = "DDTM Métropole";
+            else if (n.includes("dunkerque") || n.includes("flandre")) autoDT = "Flandre Grand Littoral";
+            else if (n.includes("valenciennes") || n.includes("hainaut") || n.includes("douaisis") || n.includes("cambrai") || n.includes("sambre")) autoDT = "Hainaut - Douaisis - Cambrésis";
+            
             return {
                 insee: item.code, name: item.nom, population: item.population, epci: epciName, directionTerritoriale: autoDT,
                 stats: { socialHousingRate: 0, targetRate: 20, deficit: false, exempt: false },
@@ -483,15 +489,15 @@ const seedDatabase = async () => {
             });
             await batch.commit();
         }
-        // Seed Refs if empty
-        const refSnap = await getDocs(getRefsCollection());
-        if (refSnap.empty) {
-            const batch = writeBatch(db);
-            ALL_REFS_DEF.forEach((r) => { 
-                batch.set(doc(db, ...REFS_DATA_PATH, r.id), r);
-            });
-            await batch.commit();
-        }
+        
+        // FORCER LA MISE À JOUR DES RÉFÉRENCES (INFO EPCI)
+        // On écrase les données existantes avec celles du code pour être sûr d'avoir la version complète
+        const batchRefs = writeBatch(db);
+        ALL_REFS_DEF.forEach((r) => { 
+            batchRefs.set(doc(db, ...REFS_DATA_PATH, r.id), r, { merge: true });
+        });
+        await batchRefs.commit();
+        
         return true;
     } catch (e) {
         console.error("Seed Failed", e);
@@ -666,7 +672,7 @@ const AdminLogin = ({ onLogin, onLogout, isAdmin }) => {
 
 /**
  * ==========================================
- * 4. DASHBOARD COMPONENT (Created based on data structure)
+ * 4. DASHBOARD COMPONENT
  * ==========================================
  */
 const Dashboard = ({ data, isAdmin }) => {
@@ -686,22 +692,37 @@ const Dashboard = ({ data, isAdmin }) => {
 
     return (
         <div className="space-y-6">
-            {/* Header Card */}
-            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                    <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-                        {data.name} 
-                        {data.isApiSource && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">API</span>}
-                    </h2>
-                    <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-500">
-                        <span className="flex items-center gap-1"><MapPin size={14}/> {data.insee}</span>
-                        <span className="flex items-center gap-1"><Building2 size={14}/> {data.epci || "EPCI Inconnu"}</span>
-                        <span className="flex items-center gap-1"><Users size={14}/> {data.population?.toLocaleString()} hab.</span>
+            {/* Header Card with Zoning INCLUDED */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col gap-6">
+                {/* Top Row: Identity */}
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                    <div>
+                        <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                            {data.name} 
+                            {data.isApiSource && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">API</span>}
+                        </h2>
+                        <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-500">
+                            <span className="flex items-center gap-1"><MapPin size={14}/> {data.insee}</span>
+                            <span className="flex items-center gap-1"><Building2 size={14}/> {data.epci || "EPCI Inconnu"}</span>
+                            <span className="flex items-center gap-1"><Users size={14}/> {data.population?.toLocaleString()} hab.</span>
+                        </div>
+                    </div>
+                    <div className="bg-slate-50 px-4 py-2 rounded-xl text-right border border-slate-200">
+                        <div className="text-xs text-slate-400 uppercase font-bold tracking-wider">Direction Territoriale</div>
+                        <div className="font-semibold text-slate-800">{data.directionTerritoriale || "Non affecté"}</div>
                     </div>
                 </div>
-                <div className="bg-slate-50 px-4 py-2 rounded-xl text-right border border-slate-200">
-                    <div className="text-xs text-slate-400 uppercase font-bold tracking-wider">Direction Territoriale</div>
-                    <div className="font-semibold text-slate-800">{data.directionTerritoriale || "Non affecté"}</div>
+
+                {/* Second Row: Zonage (En haut, prominent) */}
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-slate-100 pt-4">
+                    <div className="bg-purple-50 p-3 rounded-xl flex items-center justify-between border border-purple-100">
+                        <div className="text-sm text-purple-900 font-medium">Zone Locative</div>
+                        <div className="text-2xl font-bold text-purple-700">{data.zoning.rental}</div>
+                    </div>
+                    <div className="bg-blue-50 p-3 rounded-xl flex items-center justify-between border border-blue-100">
+                        <div className="text-sm text-blue-900 font-medium">Zone Accession</div>
+                        <div className="text-2xl font-bold text-blue-700">{data.zoning.accession}</div>
+                    </div>
                 </div>
             </div>
 
@@ -739,22 +760,6 @@ const Dashboard = ({ data, isAdmin }) => {
                             </div>
                         </div>
                     </div>
-
-                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
-                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-                            <MapPinned className="text-purple-500" size={20}/> Zonages
-                        </h3>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div className="bg-slate-50 p-3 rounded-lg text-center">
-                                <div className="text-xs text-slate-400 mb-1">Locatif (PINEL)</div>
-                                <div className="text-xl font-bold text-purple-600">{data.zoning.rental || "-"}</div>
-                            </div>
-                            <div className="bg-slate-50 p-3 rounded-lg text-center">
-                                <div className="text-xs text-slate-400 mb-1">Accession (PTZ)</div>
-                                <div className="text-xl font-bold text-blue-600">{data.zoning.accession || "-"}</div>
-                            </div>
-                        </div>
-                    </div>
                 </div>
 
                 {/* Reference Data Column */}
@@ -772,30 +777,64 @@ const Dashboard = ({ data, isAdmin }) => {
                                     </h3>
                                     <span className="text-xs text-slate-400 bg-slate-900 px-2 py-1 rounded">MàJ: {refData.lastUpdated}</span>
                                 </div>
+                                
+                                {/* DISPLAY ALL AIDS (Grid Layout for density) */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                    {/* Subsidies Quick View */}
+                                    {/* Aides État - Full List */}
                                     <div className="bg-white/10 p-4 rounded-xl">
-                                        <h4 className="font-bold text-yellow-400 mb-2 border-b border-white/10 pb-2">Aides État (Principales)</h4>
-                                        <ul className="space-y-2">
-                                            {refData.subsidiesState?.slice(0, 3).map((s, i) => (
-                                                <li key={i} className="flex justify-between">
-                                                    <span>{s.type}</span>
-                                                    <span className="font-mono">{s.amount}</span>
+                                        <h4 className="font-bold text-yellow-400 mb-2 border-b border-white/10 pb-2">Aides État</h4>
+                                        <ul className="space-y-2 max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600">
+                                            {refData.subsidiesState?.map((s, i) => (
+                                                <li key={i} className="flex justify-between items-baseline border-b border-white/5 pb-1 last:border-0">
+                                                    <span className="text-xs">{s.type}</span>
+                                                    <span className="font-mono text-yellow-100">{s.amount}</span>
                                                 </li>
                                             ))}
                                         </ul>
                                     </div>
+
+                                    {/* Aides EPCI - Full List */}
                                     <div className="bg-white/10 p-4 rounded-xl">
-                                        <h4 className="font-bold text-green-400 mb-2 border-b border-white/10 pb-2">Aides EPCI (Principales)</h4>
-                                        <ul className="space-y-2">
-                                            {refData.subsidiesEPCI?.slice(0, 3).map((s, i) => (
-                                                <li key={i} className="flex justify-between">
-                                                    <span>{s.type}</span>
-                                                    <span className="font-mono">{s.amount}</span>
+                                        <h4 className="font-bold text-green-400 mb-2 border-b border-white/10 pb-2">Aides EPCI</h4>
+                                        <ul className="space-y-2 max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600">
+                                            {refData.subsidiesEPCI?.map((s, i) => (
+                                                <li key={i} className="flex justify-between items-baseline border-b border-white/5 pb-1 last:border-0">
+                                                    <span className="text-xs">{s.type}</span>
+                                                    <span className="font-mono text-green-100">{s.amount}</span>
                                                 </li>
                                             ))}
                                         </ul>
                                     </div>
+
+                                    {/* Aides CD (Département) */}
+                                    {refData.subsidiesCD && refData.subsidiesCD.length > 0 && (
+                                        <div className="bg-white/10 p-4 rounded-xl md:col-span-1">
+                                            <h4 className="font-bold text-blue-300 mb-2 border-b border-white/10 pb-2">Aides Département (CD59)</h4>
+                                            <ul className="space-y-2">
+                                                {refData.subsidiesCD.map((s, i) => (
+                                                    <li key={i} className="flex justify-between items-baseline border-b border-white/5 pb-1 last:border-0">
+                                                        <span className="text-xs">{s.type}</span>
+                                                        <span className="font-mono text-blue-100">{s.amount}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+
+                                    {/* Aides ANRU/NPNRU */}
+                                    {refData.subsidiesNPNRU && refData.subsidiesNPNRU.length > 0 && (
+                                        <div className="bg-white/10 p-4 rounded-xl md:col-span-1">
+                                            <h4 className="font-bold text-red-300 mb-2 border-b border-white/10 pb-2">Aides ANRU</h4>
+                                            <ul className="space-y-2">
+                                                {refData.subsidiesNPNRU.map((s, i) => (
+                                                    <li key={i} className="flex justify-between items-baseline border-b border-white/5 pb-1 last:border-0">
+                                                        <span className="text-xs">{s.type}</span>
+                                                        <span className="font-mono text-red-100">{s.amount}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
 
