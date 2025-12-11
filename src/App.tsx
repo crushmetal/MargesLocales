@@ -3,51 +3,39 @@ import {
   Search, MapPin, Building2, Users, AlertTriangle, 
   CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
   X, Calculator, ChevronUp, CheckSquare, Square, 
-  Landmark, BadgeCheck, MapPinned, Target, Download, FileText, Edit3, ShieldAlert, Activity
+  Landmark, BadgeCheck, MapPinned, Target, Download, FileText, Edit3, ShieldAlert, Activity,
+  Euro, Info
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
 import { initializeApp } from 'firebase/app';
 import { 
-  getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch 
+  getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch,
+  query, where, onSnapshot
 } from 'firebase/firestore';
 import { 
-  getAuth, signInAnonymously, onAuthStateChanged 
+  getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken
 } from 'firebase/auth';
 
 /**
  * ==========================================
- * 1. CONFIGURATION & TYPES
+ * 1. CONFIGURATION & SETUP
  * ==========================================
  */
 
-// --- CONFIGURATION FIREBASE ---
-const firebaseConfig = {
-  apiKey: "AIzaSyDOBFXdCfEH0IJ_OsIH7rHijYT_NEY1FGA",
-  authDomain: "marges-locales59.firebaseapp.com",
-  projectId: "marges-locales59",
-  storageBucket: "marges-locales59.firebasestorage.app",
-  messagingSenderId: "1077584427724",
-  appId: "1:1077584427724:web:39e529e17d4021110e6069"
-};
-
-// Initialisation
+// --- CONFIGURATION FIREBASE (DYNAMIC) ---
+const firebaseConfig = JSON.parse(__firebase_config);
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-const APP_ID = 'nord-habitat-v1'; 
-const PUBLIC_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'communes'];
-const REFS_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'references'];
+// PATHS (Strictly scoped to appId)
+const PUBLIC_DATA_PATH = ['artifacts', appId, 'public', 'data', 'communes'];
+const REFS_DATA_PATH = ['artifacts', appId, 'public', 'data', 'references'];
 
-// --- TYPES ---
+// --- CONSTANTS ---
 const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
-
-export interface HousingStats { socialHousingRate: number; targetRate: number; deficit: boolean; exempt?: boolean; }
-export interface Zoning { accession: string; rental: string; }
-export interface Source { title: string; uri: string; }
-export interface CommuneData { id?: string; name: string; insee: string; epci: string; population: number; directionTerritoriale?: string; stats: HousingStats; zoning: Zoning; sources?: Source[]; lastUpdated?: string; isApiSource?: boolean; }
-export interface ReferenceData { id: string; name: string; lastUpdated: string; subsidiesState: any[]; subsidiesEPCI?: any[]; subsidiesNPNRU: any[]; subsidiesCD: any[]; marginsRE2020?: any[]; marginsDivers?: any[]; margins?: any[]; accessoryRents?: any[]; footnotes?: string[]; hasMargins: boolean; hasRents: boolean; }
 
 /**
  * ==========================================
@@ -55,14 +43,14 @@ export interface ReferenceData { id: string; name: string; lastUpdated: string; 
  * ==========================================
  */
 
-const parseCurrency = (v: string) => { 
+const parseCurrency = (v) => { 
     if(!v || typeof v !== 'string') return 0;
     const m = v.match(/(\d+)/g); return m ? Math.max(...m.map(n => parseInt(n))) : 0; 
 };
 
-const formatCurrency = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+const formatCurrency = (v) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
 
-const getMarginValue = (marginStr: string, zoneRental: string) => {
+const getMarginValue = (marginStr, zoneRental) => {
     if (!marginStr || typeof marginStr !== 'string' || !marginStr.includes("Z")) return marginStr || "";
     const z = zoneRental ? zoneRental.toString() : "";
     if (z === "2" && marginStr.includes("Z2:")) return marginStr.match(/Z2:([^|]+)/)?.[1] || marginStr;
@@ -70,9 +58,9 @@ const getMarginValue = (marginStr: string, zoneRental: string) => {
     return marginStr.replace("Z2:", "Z2: ").replace("|Z3:", " | Z3: ");
 };
 
-const getRefIdFromEpci = (epciName: string) => {
+const getRefIdFromEpci = (epciName) => {
     const n = (epciName || "").toLowerCase();
-    if (n.includes("lille")) return 'mel';
+    if (n.includes("lille") || n.includes("pévelè")) return 'mel';
     if (n.includes("dunkerque")) return 'cud';
     if (n.includes("porte du hainaut")) return 'caph';
     if (n.includes("douaisis") || n.includes("douai")) return 'cad';
@@ -82,45 +70,33 @@ const getRefIdFromEpci = (epciName: string) => {
 };
 
 // --- SERVICES DB ---
-// @ts-ignore
 const getCommunesCollection = () => collection(db, ...PUBLIC_DATA_PATH); 
-// @ts-ignore
 const getRefsCollection = () => collection(db, ...REFS_DATA_PATH); 
 
 const fetchAllCommunes = async () => {
   try { 
       const snap = await getDocs(getCommunesCollection()); 
-      return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommuneData)); 
+      return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
   } catch (error) { 
       console.error("Erreur lecture DB:", error);
       throw error; 
   }
 };
 
-const fetchReferenceData = async (epciId: string): Promise<ReferenceData | null> => {
+const fetchReferenceData = async (epciId) => {
     try {
-        // @ts-ignore
         const refDoc = await getDoc(doc(db, ...REFS_DATA_PATH, epciId));
-        if (refDoc.exists()) return refDoc.data() as ReferenceData;
+        if (refDoc.exists()) return refDoc.data();
         return null;
     } catch { return null; }
 };
 
-const saveReferenceData = async (data: ReferenceData) => {
-    try {
-        // @ts-ignore
-        await setDoc(doc(db, ...REFS_DATA_PATH, data.id), data);
-        return true;
-    } catch (e) { console.error(e); return false; }
-};
-
-const saveCommuneToDb = async (commune: CommuneData) => {
+const saveCommuneToDb = async (commune) => {
   try {
     const docId = commune.insee;
-    // @ts-ignore
     const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
     
-    const dataToSave: any = { ...commune };
+    const dataToSave = { ...commune };
     if ('isApiSource' in dataToSave) delete dataToSave.isApiSource;
     
     await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
@@ -128,18 +104,18 @@ const saveCommuneToDb = async (commune: CommuneData) => {
   } catch (err) { return false; }
 };
 
-const deleteCommuneFromDb = async (insee: string) => {
-    try { // @ts-ignore
+const deleteCommuneFromDb = async (insee) => {
+    try { 
         await deleteDoc(doc(db, ...PUBLIC_DATA_PATH, insee)); return true; 
     } catch { return false; }
 }
 
-const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
+const searchGeoApi = async (term) => {
     if (term.length < 2) return [];
     try {
         const response = await fetch(`https://geo.api.gouv.fr/communes?codeDepartement=59&nom=${term}&fields=nom,code,population,epci&boost=population&limit=5`);
         const data = await response.json();
-        return data.map((item: any) => {
+        return data.map((item) => {
             const epciName = item.epci ? item.epci.nom : "Non renseigné";
             let autoDT = "À définir";
             if (epciName.includes("Lille") || epciName.includes("Pévèle")) autoDT = "DDTM Métropole";
@@ -160,7 +136,7 @@ const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
  * 3. DONNÉES STATIQUES & SEED
  * ==========================================
  */
-const FULL_DB_59: CommuneData[] = [
+const FULL_DB_59 = [
   // --- DT FLANDRE GRAND LITTORAL ---
   { insee: "59183", name: "Dunkerque", epci: "CU de Dunkerque", population: 86788, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 35.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
   { insee: "59271", name: "Grande-Synthe", epci: "CU de Dunkerque", population: 20331, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 60.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
@@ -502,7 +478,7 @@ const seedDatabase = async () => {
         const commSnap = await getDocs(getCommunesCollection());
         if (commSnap.empty) {
             const batch = writeBatch(db);
-            FULL_DB_59.forEach((c) => { // @ts-ignore
+            FULL_DB_59.forEach((c) => { 
                 batch.set(doc(db, ...PUBLIC_DATA_PATH, c.insee), { ...c, lastUpdated: new Date().toLocaleDateString('fr-FR') });
             });
             await batch.commit();
@@ -511,7 +487,7 @@ const seedDatabase = async () => {
         const refSnap = await getDocs(getRefsCollection());
         if (refSnap.empty) {
             const batch = writeBatch(db);
-            ALL_REFS_DEF.forEach((r) => { // @ts-ignore
+            ALL_REFS_DEF.forEach((r) => { 
                 batch.set(doc(db, ...REFS_DATA_PATH, r.id), r);
             });
             await batch.commit();
@@ -523,11 +499,11 @@ const seedDatabase = async () => {
     }
 };
 
-const AdminCommuneEditor = ({ onClose, initialData }: { onClose: () => void; initialData: CommuneData[] }) => {
-  const [communes, setCommunes] = useState<CommuneData[]>(initialData);
+const AdminCommuneEditor = ({ onClose, initialData }) => {
+  const [communes, setCommunes] = useState(initialData);
   const [search, setSearch] = useState("");
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState<CommuneData | null>(null);
+  const [editingId, setEditingId] = useState(null);
+  const [editForm, setEditForm] = useState(null);
 
   const filteredData = useMemo(() => {
     if (!search) return communes;
@@ -535,7 +511,7 @@ const AdminCommuneEditor = ({ onClose, initialData }: { onClose: () => void; ini
     return communes.filter(c => c.name.toLowerCase().includes(lower) || c.insee.includes(lower));
   }, [communes, search]);
 
-  const handleEdit = (c: CommuneData) => { setEditingId(c.insee); setEditForm({ ...c }); };
+  const handleEdit = (c) => { setEditingId(c.insee); setEditForm({ ...c }); };
   const handleSave = async () => {
       if (!editForm) return;
       await saveCommuneToDb(editForm);
@@ -547,18 +523,17 @@ const AdminCommuneEditor = ({ onClose, initialData }: { onClose: () => void; ini
       setEditingId(null);
   };
   
-  const handleFormChange = (f: string, v: any, n?: string) => {
+  const handleFormChange = (f, v, n) => {
       setEditForm(prev => {
         if (!prev) return null;
         if (n) {
-            // @ts-ignore
             return { ...prev, [n]: { ...prev[n], [f]: v } };
         }
         return { ...prev, [f]: v };
     });
   };
 
-  const handleDelete = async (insee: string) => {
+  const handleDelete = async (insee) => {
       if(confirm("Supprimer définitivement cette commune ?")) {
           const success = await deleteCommuneFromDb(insee);
           if(success) {
@@ -568,7 +543,7 @@ const AdminCommuneEditor = ({ onClose, initialData }: { onClose: () => void; ini
   };
 
   const handleCreate = () => {
-      const newCommune: CommuneData = {
+      const newCommune = {
           insee: "", name: "Nouvelle Commune", epci: "", population: 0, directionTerritoriale: "",
           stats: { socialHousingRate: 0, targetRate: 25, deficit: false, exempt: false },
           zoning: { accession: "", rental: "" }
@@ -635,12 +610,12 @@ const AdminCommuneEditor = ({ onClose, initialData }: { onClose: () => void; ini
   );
 };
 
-const AdminLogin: React.FC<{ onLogin: () => void; onLogout: () => void; isAdmin: boolean }> = ({ onLogin, onLogout, isAdmin }) => {
+const AdminLogin = ({ onLogin, onLogout, isAdmin }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [code, setCode] = useState('');
   const [error, setError] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
     if (code === '1920') {
       onLogin();
@@ -689,28 +664,224 @@ const AdminLogin: React.FC<{ onLogin: () => void; onLogout: () => void; isAdmin:
   );
 };
 
+/**
+ * ==========================================
+ * 4. DASHBOARD COMPONENT (Created based on data structure)
+ * ==========================================
+ */
+const Dashboard = ({ data, isAdmin }) => {
+    const [refData, setRefData] = useState(null);
+    const [loadingRef, setLoadingRef] = useState(true);
+
+    useEffect(() => {
+        const loadRefs = async () => {
+            setLoadingRef(true);
+            const refId = getRefIdFromEpci(data.epci);
+            const rData = await fetchReferenceData(refId);
+            setRefData(rData);
+            setLoadingRef(false);
+        };
+        loadRefs();
+    }, [data]);
+
+    return (
+        <div className="space-y-6">
+            {/* Header Card */}
+            <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
+                        {data.name} 
+                        {data.isApiSource && <span className="text-[10px] bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full uppercase tracking-wider font-bold">API</span>}
+                    </h2>
+                    <div className="flex flex-wrap items-center gap-4 mt-2 text-sm text-slate-500">
+                        <span className="flex items-center gap-1"><MapPin size={14}/> {data.insee}</span>
+                        <span className="flex items-center gap-1"><Building2 size={14}/> {data.epci || "EPCI Inconnu"}</span>
+                        <span className="flex items-center gap-1"><Users size={14}/> {data.population?.toLocaleString()} hab.</span>
+                    </div>
+                </div>
+                <div className="bg-slate-50 px-4 py-2 rounded-xl text-right border border-slate-200">
+                    <div className="text-xs text-slate-400 uppercase font-bold tracking-wider">Direction Territoriale</div>
+                    <div className="font-semibold text-slate-800">{data.directionTerritoriale || "Non affecté"}</div>
+                </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                {/* Stats Column */}
+                <div className="lg:col-span-1 space-y-6">
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 h-full">
+                        <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                            <Activity className="text-blue-500" size={20}/> Situation SRU
+                        </h3>
+                        
+                        <div className="relative pt-4 pb-8 flex flex-col items-center">
+                            {/* Gauge Visualization */}
+                            <div className="relative w-40 h-20 overflow-hidden">
+                                <div className="absolute top-0 left-0 w-full h-full bg-slate-100 rounded-t-full"></div>
+                                <div 
+                                    className={`absolute top-0 left-0 w-full h-full rounded-t-full transition-all duration-1000 origin-bottom ${data.stats.socialHousingRate >= data.stats.targetRate ? 'bg-green-500' : 'bg-orange-500'}`}
+                                    style={{ transform: `rotate(${(Math.min(data.stats.socialHousingRate / 40, 1) * 180) - 180}deg)` }}
+                                ></div>
+                            </div>
+                            <div className="absolute top-16 font-bold text-3xl text-slate-900">{data.stats.socialHousingRate}%</div>
+                            <div className="mt-2 text-xs text-slate-400 text-center">Taux LLS actuel</div>
+                        </div>
+
+                        <div className="space-y-4 mt-4">
+                            <div className="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
+                                <span className="text-slate-500">Objectif Triennal</span>
+                                <span className="font-semibold">{data.stats.targetRate}%</span>
+                            </div>
+                            <div className="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
+                                <span className="text-slate-500">Statut Carence</span>
+                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${data.stats.deficit ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                                    {data.stats.deficit ? 'Déficitaire' : 'Conforme'}
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                        <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                            <MapPinned className="text-purple-500" size={20}/> Zonages
+                        </h3>
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-slate-50 p-3 rounded-lg text-center">
+                                <div className="text-xs text-slate-400 mb-1">Locatif (PINEL)</div>
+                                <div className="text-xl font-bold text-purple-600">{data.zoning.rental || "-"}</div>
+                            </div>
+                            <div className="bg-slate-50 p-3 rounded-lg text-center">
+                                <div className="text-xs text-slate-400 mb-1">Accession (PTZ)</div>
+                                <div className="text-xl font-bold text-blue-600">{data.zoning.accession || "-"}</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Reference Data Column */}
+                <div className="lg:col-span-2 space-y-6">
+                    {loadingRef ? (
+                        <div className="bg-white rounded-2xl p-12 text-center text-slate-400">
+                            <Loader2 className="animate-spin mx-auto mb-2" /> Chargement du référentiel...
+                        </div>
+                    ) : refData ? (
+                        <>
+                            <div className="bg-slate-800 text-white rounded-2xl p-6 shadow-sm">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="font-bold text-lg flex items-center gap-2">
+                                        <Landmark size={20} className="text-yellow-400"/> Cadre de Financement : {refData.name}
+                                    </h3>
+                                    <span className="text-xs text-slate-400 bg-slate-900 px-2 py-1 rounded">MàJ: {refData.lastUpdated}</span>
+                                </div>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                    {/* Subsidies Quick View */}
+                                    <div className="bg-white/10 p-4 rounded-xl">
+                                        <h4 className="font-bold text-yellow-400 mb-2 border-b border-white/10 pb-2">Aides État (Principales)</h4>
+                                        <ul className="space-y-2">
+                                            {refData.subsidiesState?.slice(0, 3).map((s, i) => (
+                                                <li key={i} className="flex justify-between">
+                                                    <span>{s.type}</span>
+                                                    <span className="font-mono">{s.amount}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                    <div className="bg-white/10 p-4 rounded-xl">
+                                        <h4 className="font-bold text-green-400 mb-2 border-b border-white/10 pb-2">Aides EPCI (Principales)</h4>
+                                        <ul className="space-y-2">
+                                            {refData.subsidiesEPCI?.slice(0, 3).map((s, i) => (
+                                                <li key={i} className="flex justify-between">
+                                                    <span>{s.type}</span>
+                                                    <span className="font-mono">{s.amount}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Detailed Tables */}
+                            <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                                <div className="bg-gray-50 px-6 py-3 border-b border-gray-100 flex items-center gap-2 font-semibold text-gray-700">
+                                    <Euro size={16}/> Marges & Loyers Accessoires
+                                </div>
+                                <div className="p-6">
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-sm text-left">
+                                            <thead className="text-xs text-gray-400 uppercase bg-gray-50">
+                                                <tr>
+                                                    <th className="px-4 py-2">Type</th>
+                                                    <th className="px-4 py-2">Produit</th>
+                                                    <th className="px-4 py-2 text-right">Valeur</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {refData.marginsRE2020?.map((m, i) => (
+                                                    <tr key={`re-${i}`}>
+                                                        <td className="px-4 py-2 font-medium">{m.type}</td>
+                                                        <td className="px-4 py-2 text-gray-500">{m.product}</td>
+                                                        <td className="px-4 py-2 text-right font-mono text-blue-600">
+                                                            {getMarginValue(m.margin, data.zoning.rental)}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {refData.accessoryRents?.map((r, i) => (
+                                                    <tr key={`rent-${i}`} className="bg-slate-50/50">
+                                                        <td className="px-4 py-2 font-medium">{r.type}</td>
+                                                        <td className="px-4 py-2 text-gray-500">{r.product}</td>
+                                                        <td className="px-4 py-2 text-right font-mono text-green-600">
+                                                            {r.maxRent} <span className="text-xs text-gray-400">({r.condition})</span>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </>
+                    ) : (
+                        <div className="bg-white rounded-2xl p-8 text-center border border-red-100">
+                            <ShieldAlert className="mx-auto text-red-400 mb-2" size={32} />
+                            <h3 className="text-red-900 font-bold">Référentiel Non Trouvé</h3>
+                            <p className="text-red-600 text-sm">Aucune donnée financière disponible pour l'EPCI : {data.epci}</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- APP MAIN ---
 
-const App: React.FC = () => {
+const App = () => {
   const [viewState, setViewState] = useState(ViewState.HOME);
-  const [selectedCommune, setSelectedCommune] = useState<CommuneData | null>(null);
+  const [selectedCommune, setSelectedCommune] = useState(null);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [suggestions, setSuggestions] = useState<CommuneData[]>([]);
-  // @ts-ignore
-  const [user, setUser] = useState<any>(null);
+  const [suggestions, setSuggestions] = useState([]);
+  const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
-  const [allCommunes, setAllCommunes] = useState<CommuneData[]>(FULL_DB_59); 
-  const [dbError, setDbError] = useState<string | null>(null);
+  const [allCommunes, setAllCommunes] = useState(FULL_DB_59); 
+  const [dbError, setDbError] = useState(null);
 
+  // AUTH SETUP - MUST USE THIS PATTERN
   useEffect(() => {
-    signInAnonymously(auth)
-      .then(() => setDbError(null))
-      .catch((error) => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) {
         console.error("Auth Failed:", error);
         setDbError(`Erreur d'authentification : ${error.code} - ${error.message}`);
-      });
+      }
+    };
+    initAuth();
+    
     return onAuthStateChanged(auth, setUser);
   }, []);
 
@@ -739,9 +910,10 @@ const App: React.FC = () => {
         setLoading(true);
         const localMatches = allCommunes.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 5);
         
-        let apiRes: CommuneData[] = [];
+        let apiRes = [];
         try {
-           apiRes = await searchGeoApi(searchTerm);
+           // Only call API if connected
+           if (navigator.onLine) apiRes = await searchGeoApi(searchTerm);
         } catch (e) {
            console.warn("API Gouv unavailable", e);
         }
@@ -801,6 +973,17 @@ const App: React.FC = () => {
                 <h1 className="text-3xl font-bold text-slate-900 mb-4">Référentiel Habitat <span className="text-blue-600">Nord (59)</span></h1>
                 <p className="text-slate-500 mb-8">Base de données complète avec édition des référentiels en ligne.</p>
                 {isAdmin && <div className="text-green-600 font-bold text-sm bg-green-50 p-2 rounded border border-green-200">Mode Administrateur Actif</div>}
+                
+                <div className="mt-8 grid grid-cols-2 gap-4 text-left">
+                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="flex items-center gap-2 font-bold text-slate-700 mb-1"><Target size={16}/> Objectifs SRU</div>
+                        <p className="text-xs text-slate-500">Consultez les taux et les objectifs triennaux par commune.</p>
+                     </div>
+                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="flex items-center gap-2 font-bold text-slate-700 mb-1"><Euro size={16}/> Financements</div>
+                        <p className="text-xs text-slate-500">Accédez aux subventions délégataires et marges techniques.</p>
+                     </div>
+                </div>
              </div>
           </div>
         )}
