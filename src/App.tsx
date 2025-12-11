@@ -3,7 +3,7 @@ import {
   Search, MapPin, Building2, Users, AlertTriangle, 
   CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
   X, Calculator, ChevronUp, CheckSquare, Square, 
-  Landmark, BadgeCheck, MapPinned, Target, Download, FileText, Edit3, Bug
+  Landmark, BadgeCheck, MapPinned, Target, Download, FileText, Edit3
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -63,8 +63,10 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'c
 
 const getMarginValue = (marginStr: string, zoneRental: string) => {
     if (!marginStr || typeof marginStr !== 'string' || !marginStr.includes("Z")) return marginStr || "";
-    if (zoneRental === "2" && marginStr.includes("Z2:")) return marginStr.match(/Z2:([^|]+)/)?.[1] || marginStr;
-    if (zoneRental === "3" && marginStr.includes("Z3:")) return marginStr.match(/Z3:([^|]+)/)?.[1] || marginStr;
+    // Safe check if zoneRental is defined
+    const z = zoneRental ? zoneRental.toString() : "";
+    if (z === "2" && marginStr.includes("Z2:")) return marginStr.match(/Z2:([^|]+)/)?.[1] || marginStr;
+    if (z === "3" && marginStr.includes("Z3:")) return marginStr.match(/Z3:([^|]+)/)?.[1] || marginStr;
     return marginStr.replace("Z2:", "Z2: ").replace("|Z3:", " | Z3: ");
 };
 
@@ -86,13 +88,7 @@ const getCommunesCollection = () => collection(db, ...PUBLIC_DATA_PATH);
 const getRefsCollection = () => collection(db, ...REFS_DATA_PATH); 
 
 const fetchAllCommunes = async () => {
-  try { 
-      const snap = await getDocs(getCommunesCollection()); 
-      return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommuneData)); 
-  } catch (error) { 
-      console.error("DB Error:", error);
-      throw error; // Propagate error for debug
-  }
+  try { const snap = await getDocs(getCommunesCollection()); return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommuneData)); } catch { return []; }
 };
 
 const fetchReferenceData = async (epciId: string): Promise<ReferenceData | null> => {
@@ -155,85 +151,59 @@ const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
 
 /**
  * ==========================================
- * 3. DONNÉES STATIQUES (SEED)
+ * 3. DONNÉES STATIQUES & SEED (CORRIGÉES)
  * ==========================================
  */
-const FULL_DB_59 = [
+const FULL_DB_59: CommuneData[] = [
   // --- DT FLANDRE GRAND LITTORAL ---
-  { insee: "59183", name: "Dunkerque", epci: "CU de Dunkerque", population: 86788, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 35.0, cible: 25 },
-  { insee: "59271", name: "Grande-Synthe", epci: "CU de Dunkerque", population: 20331, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 60.0, cible: 25 },
-  { insee: "59155", name: "Coudekerque-Branche", epci: "CU de Dunkerque", population: 20765, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 30.0, cible: 25 },
-  { insee: "59273", name: "Gravelines", epci: "CU de Dunkerque", population: 11223, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 28.0, cible: 20 },
-  { insee: "59123", name: "Bray-Dunes", epci: "CU de Dunkerque", population: 4380, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 12.5, cible: 25 },
-  { insee: "59668", name: "Zuydcoote", epci: "CU de Dunkerque", population: 1600, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 8.0, cible: 25 },
-  { insee: "59360", name: "Loon-Plage", epci: "CU de Dunkerque", population: 6039, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 25.0, cible: 25 },
-  { insee: "59588", name: "Téteghem-Coudekerque-Village", epci: "CU de Dunkerque", population: 8384, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 24.89, cible: 25 },
-  { insee: "59341", name: "Leffrinckoucke", epci: "CU de Dunkerque", population: 4124, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 25.0, cible: 25 },
-  { insee: "59098", name: "Bourbourg", epci: "CU de Dunkerque", population: 7023, dt: "Flandre Grand Littoral", zA: "C", zL: "3", sru: 25.0, cible: 20 },
-  { insee: "59295", name: "Hazebrouck", epci: "CC Flandre Intérieure", population: 21498, dt: "Flandre Grand Littoral", zA: "C", zL: "3", sru: 22.98, cible: 20 },
-  { insee: "59044", name: "Bailleul", epci: "CC Cœur de Flandre", population: 14869, dt: "Flandre Grand Littoral", zA: "B1", zL: "2", sru: 21.09, cible: 20 },
-  { insee: "59437", name: "Nieppe", epci: "CC Cœur de Flandre", population: 7606, dt: "Flandre Grand Littoral", zA: "B1", zL: "2", sru: 23.07, cible: 20 },
-  { insee: "59398", name: "Merville", epci: "CC Flandre Lys", population: 9652, dt: "Flandre Grand Littoral", zA: "C", zL: "3", sru: 17.56, cible: 20 },
-  { insee: "59580", name: "Steenvoorde", epci: "CC Cœur de Flandre", population: 4324, dt: "Flandre Grand Littoral", zA: "C", zL: "3", sru: 9.72, cible: 20 },
-
+  { insee: "59183", name: "Dunkerque", epci: "CU de Dunkerque", population: 86788, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 35.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59271", name: "Grande-Synthe", epci: "CU de Dunkerque", population: 20331, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 60.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59155", name: "Coudekerque-Branche", epci: "CU de Dunkerque", population: 20765, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 30.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59273", name: "Gravelines", epci: "CU de Dunkerque", population: 11223, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59123", name: "Bray-Dunes", epci: "CU de Dunkerque", population: 4380, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 12.5, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59668", name: "Zuydcoote", epci: "CU de Dunkerque", population: 1600, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 8.0, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59360", name: "Loon-Plage", epci: "CU de Dunkerque", population: 6039, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59588", name: "Téteghem-Coudekerque-Village", epci: "CU de Dunkerque", population: 8384, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 24.89, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59341", name: "Leffrinckoucke", epci: "CU de Dunkerque", population: 4124, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59098", name: "Bourbourg", epci: "CU de Dunkerque", population: 7023, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 25.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "C", rental: "3" } },
+  
   // --- DT MÉTROPOLE (MEL) ---
-  { insee: "59350", name: "Lille", epci: "Métropole Européenne de Lille", population: 236710, dt: "DDTM Métropole", zA: "A", zL: "1", sru: 24.5, cible: 25 },
-  { insee: "59512", name: "Roubaix", epci: "Métropole Européenne de Lille", population: 98892, dt: "DDTM Métropole", zA: "B1", zL: "1", sru: 45.2, cible: 25 },
-  { insee: "59599", name: "Tourcoing", epci: "Métropole Européenne de Lille", population: 99011, dt: "DDTM Métropole", zA: "B1", zL: "1", sru: 32.1, cible: 25 },
-  { insee: "59648", name: "Villeneuve-d'Ascq", epci: "Métropole Européenne de Lille", population: 62067, dt: "DDTM Métropole", zA: "B1", zL: "1", sru: 42.0, cible: 25 },
-  { insee: "59368", name: "Marcq-en-Barœul", epci: "Métropole Européenne de Lille", population: 39356, dt: "DDTM Métropole", zA: "A", zL: "1", sru: 19.4, cible: 25 },
-  { insee: "59328", name: "Lambersart", epci: "Métropole Européenne de Lille", population: 27121, dt: "DDTM Métropole", zA: "A", zL: "1", sru: 17.7, cible: 25 },
-  { insee: "59017", name: "Armentières", epci: "Métropole Européenne de Lille", population: 25581, dt: "DDTM Métropole", zA: "B1", zL: "2", sru: 24.6, cible: 25 },
-  { insee: "59343", name: "Lesquin", epci: "Métropole Européenne de Lille", population: 9241, dt: "DDTM Métropole", zA: "A", zL: "1", sru: 23.64, cible: 25 },
-  { insee: "59090", name: "Bondues", epci: "Métropole Européenne de Lille", population: 9713, dt: "DDTM Métropole", zA: "A", zL: "1", sru: 18.6, cible: 25 },
-  { insee: "59419", name: "Mouvaux", epci: "Métropole Européenne de Lille", population: 13173, dt: "DDTM Métropole", zA: "A", zL: "1", sru: 15.5, cible: 25 },
-  { insee: "59378", name: "Marquette-lez-Lille", epci: "Métropole Européenne de Lille", population: 11213, dt: "DDTM Métropole", zA: "A", zL: "1", sru: 30.2, cible: 25 },
-  { insee: "59320", name: "La Madeleine", epci: "Métropole Européenne de Lille", population: 22488, dt: "DDTM Métropole", zA: "A", zL: "1", sru: 25.2, cible: 25 },
-  { insee: "59410", name: "Mons-en-Barœul", epci: "Métropole Européenne de Lille", population: 21467, dt: "DDTM Métropole", zA: "B1", zL: "1", sru: 30.0, cible: 25 },
-  { insee: "59508", name: "Ronchin", epci: "Métropole Européenne de Lille", population: 19437, dt: "DDTM Métropole", zA: "A", zL: "1", sru: 28.9, cible: 25 },
-  { insee: "59650", name: "Wattrelos", epci: "Métropole Européenne de Lille", population: 40836, dt: "DDTM Métropole", zA: "B1", zL: "1", sru: 25.0, cible: 25 },
-  { insee: "59560", name: "Seclin", epci: "Métropole Européenne de Lille", population: 12834, dt: "DDTM Métropole", zA: "B1", zL: "1", sru: 25.0, cible: 25 },
-  { insee: "59279", name: "Halluin", epci: "Métropole Européenne de Lille", population: 20829, dt: "DDTM Métropole", zA: "B1", zL: "2", sru: 27.0, cible: 25 },
-  { insee: "59286", name: "Haubourdin", epci: "Métropole Européenne de Lille", population: 14757, dt: "DDTM Métropole", zA: "B1", zL: "2", sru: 25.0, cible: 25 },
-  { insee: "59163", name: "Croix", epci: "Métropole Européenne de Lille", population: 20778, dt: "DDTM Métropole", zA: "A", zL: "1", sru: 22.25, cible: 25 },
+  { insee: "59350", name: "Lille", epci: "Métropole Européenne de Lille", population: 236710, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 24.5, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "A", rental: "1" } },
+  { insee: "59512", name: "Roubaix", epci: "Métropole Européenne de Lille", population: 98892, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 45.2, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B1", rental: "1" } },
+  { insee: "59599", name: "Tourcoing", epci: "Métropole Européenne de Lille", population: 99011, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 32.1, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B1", rental: "1" } },
+  { insee: "59648", name: "Villeneuve-d'Ascq", epci: "Métropole Européenne de Lille", population: 62067, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 42.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B1", rental: "1" } },
+  { insee: "59368", name: "Marcq-en-Barœul", epci: "Métropole Européenne de Lille", population: 39356, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 19.4, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "A", rental: "1" } },
   
   // --- DT HAINAUT - DOUAISIS - CAMBRÉSIS ---
-  // Porte du Hainaut (CAPH)
-  { insee: "59526", name: "Saint-Amand-les-Eaux", epci: "CA de la Porte du Hainaut", population: 15980, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.5, cible: 20 },
-  { insee: "59172", name: "Denain", epci: "CA de la Porte du Hainaut", population: 20640, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 38.0, cible: 20 },
-  { insee: "59092", name: "Bouchain", epci: "CA de la Porte du Hainaut", population: 3996, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 20.65, cible: 20 },
-  { insee: "59181", name: "Douchy-les-Mines", epci: "CA de la Porte du Hainaut", population: 10207, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
-  { insee: "59490", name: "Raismes", epci: "CA de la Porte du Hainaut", population: 12055, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
-  { insee: "59001", name: "Abscon", epci: "CA de la Porte du Hainaut", population: 4203, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
-  
-  // Valenciennes Métropole (CAVM)
-  { insee: "59606", name: "Valenciennes", epci: "CA Valenciennes Métropole", population: 42991, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 28.0, cible: 20 },
-  { insee: "59014", name: "Anzin", epci: "CA Valenciennes Métropole", population: 13422, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 35.0, cible: 20 },
-  { insee: "59550", name: "Saint-Saulve", epci: "CA Valenciennes Métropole", population: 11117, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
-  { insee: "59372", name: "Marly", epci: "CA Valenciennes Métropole", population: 12024, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
-  { insee: "59032", name: "Aulnoy-lez-Valenciennes", epci: "CA Valenciennes Métropole", population: 7183, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
-  { insee: "59079", name: "Beuvrages", epci: "CA Valenciennes Métropole", population: 6784, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
-  { insee: "59139", name: "Bruay-sur-l'Escaut", epci: "CA Valenciennes Métropole", population: 11309, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
-  { insee: "59153", name: "Condé-sur-l'Escaut", epci: "CA Valenciennes Métropole", population: 9396, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
-  { insee: "59160", name: "Crespin", epci: "CA Valenciennes Métropole", population: 4515, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
-  { insee: "59253", name: "Fresnes-sur-Escaut", epci: "CA Valenciennes Métropole", population: 7486, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
-  { insee: "59458", name: "Petite-Forêt", epci: "CA Valenciennes Métropole", population: 5058, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 22.89, cible: 20 },
-  
-  // Douaisis
-  { insee: "59173", name: "Douai", epci: "Douaisis Agglo", population: 39648, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 32.0, cible: 20 },
-  { insee: "59569", name: "Sin-le-Noble", epci: "Douaisis Agglo", population: 15603, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 35.0, cible: 20 },
-  { insee: "59632", name: "Waziers", epci: "Douaisis Agglo", population: 7354, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 35.0, cible: 20 },
-  { insee: "59163", name: "Cuincy", epci: "Douaisis Agglo", population: 6472, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
-  { insee: "59170", name: "Dechy", epci: "Douaisis Agglo", population: 5351, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
-  
-  // Cambrésis & Sambre
-  { insee: "59122", name: "Cambrai", epci: "CA de Cambrai", population: 31425, dt: "Hainaut - Douaisis - Cambrésis", zA: "C", zL: "3", sru: 22.0, cible: 20 },
-  { insee: "59392", name: "Maubeuge", epci: "CA Maubeuge Val de Sambre", population: 29066, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 40.0, cible: 20 },
-  { insee: "59321", name: "Jeumont", epci: "CA Maubeuge Val de Sambre", population: 10342, dt: "Hainaut - Douaisis - Cambrésis", zA: "C", zL: "2", sru: 25.0, cible: 20 },
-  { insee: "59033", name: "Aulnoye-Aymeries", epci: "CA Maubeuge Val de Sambre", population: 8756, dt: "Hainaut - Douaisis - Cambrésis", zA: "C", zL: "2", sru: 35.0, cible: 20 },
-  { insee: "59574", name: "Somain", epci: "CC Cœur d'Ostrevent", population: 11790, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
-  { insee: "59008", name: "Aniche", epci: "CC Cœur d'Ostrevent", population: 9997, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 }
+  { insee: "59526", name: "Saint-Amand-les-Eaux", epci: "CA de la Porte du Hainaut", population: 15980, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 25.5, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59606", name: "Valenciennes", epci: "CA Valenciennes Métropole", population: 42991, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59173", name: "Douai", epci: "Douaisis Agglo", population: 39648, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 32.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59392", name: "Maubeuge", epci: "CA Maubeuge Val de Sambre", population: 29066, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 40.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59122", name: "Cambrai", epci: "CA de Cambrai", population: 31425, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 22.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "C", rental: "3" } }
 ];
+
+// --- DONNÉES RÉFÉRENTIELS (RÈGLES) ---
+
+const seedDatabase = async () => {
+    const commSnap = await getDocs(getCommunesCollection());
+    if (commSnap.empty) {
+        const batch = writeBatch(db);
+        FULL_DB_59.forEach((c) => { // @ts-ignore
+            batch.set(doc(db, ...PUBLIC_DATA_PATH, c.insee), { ...c, lastUpdated: new Date().toLocaleDateString('fr-FR') });
+        });
+        await batch.commit();
+    }
+    // Seed Refs if empty
+    const refSnap = await getDocs(getRefsCollection());
+    if (refSnap.empty) {
+        const batch = writeBatch(db);
+        ALL_REFS_DEF.forEach((r) => { // @ts-ignore
+            batch.set(doc(db, ...REFS_DATA_PATH, r.id), r);
+        });
+        await batch.commit();
+    }
+    return true;
+};
 
 // 1. DDTM (Défaut)
 const DDTM_DEF = {
@@ -375,12 +345,13 @@ const CUD_DEF = {
         { type: "Garage", product: "PLUS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
         { type: "Garage", product: "PLS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
         { type: "Carport", product: "PLAI", maxRent: "10€/12€", condition: "Local/Fermé" },
-        { type: "Carport", product: "PLUS", maxRent: "25 €", condition: "" },
-        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Stationnement", product: "PLUS", maxRent: "18 €", condition: "" }
+        { type: "Carport", product: "PLUS", maxRent: "20€/25€", condition: "Local/Fermé" },
+        { type: "Carport", product: "PLS", maxRent: "20€/25€", condition: "Local/Fermé" },
+        { type: "Stationnement", product: "PLAI", maxRent: "8 €", condition: "" },
+        { type: "Stationnement", product: "PLUS", maxRent: "16 €", condition: "" },
+        { type: "Stationnement", product: "PLS", maxRent: "16 €", condition: "" }
     ],
-    hasMargins: true, hasRents: true,
-    footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
+    hasMargins: true, hasRents: true, footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
 };
 
 // 4. CAPH
@@ -541,27 +512,6 @@ const CAMVS_DEF = { ...CUD_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMV
 };
 
 const ALL_REFS_DEF = [DDTM_DEF, MEL_DEF, CUD_DEF, CAPH_DEF, CAVM_DEF, CAD_DEF, CAMVS_DEF];
-
-const seedDatabase = async () => {
-    const commSnap = await getDocs(getCommunesCollection());
-    if (commSnap.empty) {
-        const batch = writeBatch(db);
-        FULL_DB_59.forEach((c) => { // @ts-ignore
-            batch.set(doc(db, ...PUBLIC_DATA_PATH, c.insee), { ...c, lastUpdated: new Date().toLocaleDateString('fr-FR') });
-        });
-        await batch.commit();
-    }
-    // Seed Refs if empty
-    const refSnap = await getDocs(getRefsCollection());
-    if (refSnap.empty) {
-        const batch = writeBatch(db);
-        ALL_REFS_DEF.forEach((r) => { // @ts-ignore
-            batch.set(doc(db, ...REFS_DATA_PATH, r.id), r);
-        });
-        await batch.commit();
-    }
-    return true;
-};
 
 const AdminCommuneEditor = ({ onClose, initialData }: { onClose: () => void; initialData: CommuneData[] }) => {
   const [communes, setCommunes] = useState<CommuneData[]>(initialData);
@@ -741,19 +691,19 @@ const App: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
-  const [allCommunes, setAllCommunes] = useState<CommuneData[]>(FULL_DB_59); // Initialize with default data
+  const [allCommunes, setAllCommunes] = useState<CommuneData[]>(FULL_DB_59); // Initialisation directe avec les données riches pour éviter la page blanche
 
   useEffect(() => {
-    // Connexion anonyme simplifiée
     signInAnonymously(auth).catch(console.error);
     return onAuthStateChanged(auth, setUser);
   }, []);
 
   useEffect(() => {
+      // Tentative de mise à jour depuis la DB, mais on ne vide pas la liste si ça échoue
       if(user) {
           seedDatabase().then(() => fetchAllCommunes().then((res) => {
               if (res.length > 0) setAllCommunes(res);
-          }));
+          })).catch(err => console.log("Mode hors ligne activé:", err));
       }
   }, [user]);
 
@@ -814,10 +764,6 @@ const App: React.FC = () => {
                 <h1 className="text-3xl font-bold text-slate-900 mb-4">Référentiel Habitat <span className="text-blue-600">Nord (59)</span></h1>
                 <p className="text-slate-500 mb-8">Base de données complète avec édition des référentiels en ligne.</p>
                 {isAdmin && <div className="text-green-600 font-bold text-sm bg-green-50 p-2 rounded border border-green-200">Mode Administrateur Actif</div>}
-             </div>
-             {/* ADDED DEBUG: Show Auth and DB Status if needed */}
-             <div className="mt-4 p-2 bg-gray-100 rounded text-xs text-gray-500 font-mono">
-                {user ? "Online (DB Connected)" : "Offline (Local Mode)"}
              </div>
           </div>
         )}
