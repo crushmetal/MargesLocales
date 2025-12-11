@@ -85,7 +85,6 @@ const getCommunesCollection = () => collection(db, ...PUBLIC_DATA_PATH);
 const getRefsCollection = () => collection(db, ...REFS_DATA_PATH); 
 
 const fetchAllCommunes = async () => {
-  // Modification pour remonter l'erreur au lieu de la cacher
   try { 
       const snap = await getDocs(getCommunesCollection()); 
       return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommuneData)); 
@@ -119,7 +118,7 @@ const saveCommuneToDb = async (commune: CommuneData) => {
     const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
     
     const dataToSave: any = { ...commune };
-    delete dataToSave.isApiSource;
+    if ('isApiSource' in dataToSave) delete dataToSave.isApiSource;
     
     await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
     return true;
@@ -355,12 +354,12 @@ const CUD_DEF = {
         { type: "Garage", product: "PLUS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
         { type: "Garage", product: "PLS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
         { type: "Carport", product: "PLAI", maxRent: "10€/12€", condition: "Local/Fermé" },
-        { type: "Carport", product: "PLUS", maxRent: "20€/25€", condition: "Local/Fermé" },
-        { type: "Carport", product: "PLS", maxRent: "20€/25€", condition: "Local/Fermé" },
-        { type: "Stationnement", product: "PLAI", maxRent: "8 €", condition: "" },
-        { type: "Stationnement", product: "PLUS", maxRent: "16 €", condition: "" },
-        { type: "Stationnement", product: "PLS", maxRent: "16 €", condition: "" }
+        { type: "Carport", product: "PLUS", maxRent: "25 €", condition: "" },
+        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Stationnement", product: "PLUS", maxRent: "18 €", condition: "" }
     ],
+    hasMargins: true, hasRents: true,
+    footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
 };
 
 // 4. CAPH
