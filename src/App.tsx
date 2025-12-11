@@ -48,40 +48,7 @@ export interface ReferenceData { id: string; name: string; lastUpdated: string; 
 
 /**
  * ==========================================
- * 2. DONNÉES DE DÉMARRAGE (SEED)
- * ==========================================
- */
-const FULL_DB_59 = [
-  { insee: "59183", name: "Dunkerque", epci: "CU de Dunkerque", population: 86788, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 35.0, cible: 25 },
-  { insee: "59350", name: "Lille", epci: "Métropole Européenne de Lille", population: 236710, dt: "DDTM Métropole", zA: "A", zL: "1", sru: 24.5, cible: 25 },
-  { insee: "59606", name: "Valenciennes", epci: "CA Valenciennes Métropole", population: 42991, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 28.0, cible: 20 },
-  { insee: "59173", name: "Douai", epci: "Douaisis Agglo", population: 39648, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 32.0, cible: 20 },
-  { insee: "59526", name: "Saint-Amand-les-Eaux", epci: "CA de la Porte du Hainaut", population: 15980, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.5, cible: 20 },
-  { insee: "59392", name: "Maubeuge", epci: "CA Maubeuge Val de Sambre", population: 29066, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 40.0, cible: 20 }
-];
-
-const DDTM_DEF = {
-    id: 'ddtm', name: 'DDTM 59 (Droit Commun)', lastUpdated: '01/01/2024',
-    subsidiesState: [{ type: "PLAI", amount: "13 500 €", condition: "/lgt" }, { type: "PLUS", amount: "5 400 €", condition: "/lgt" }],
-    subsidiesCD: [{ type: "CD PLAI", amount: "4 000 €", condition: "Forfait" }, { type: "CD PLUS", amount: "2 000 €", condition: "Forfait" }],
-    subsidiesNPNRU: [{ type: "ANRU", amount: "Variable", condition: "Selon conv." }],
-    marginsRE2020: [{ type: "Marge", product: "Tous", margin: "Selon perf" }],
-    marginsDivers: [{ type: "Marge", product: "Tous", margin: "Selon perf" }],
-    accessoryRents: [{ type: "Garage", product: "Annexes", maxRent: "60 €", condition: "Zone B1/B2" }],
-    hasMargins: true, hasRents: true
-};
-
-const MEL_DEF = { ...DDTM_DEF, id: 'mel', name: 'Métropole Européenne de Lille' }; 
-const CUD_DEF = { ...DDTM_DEF, id: 'cud', name: 'Communauté Urbaine de Dunkerque' };
-const CAPH_DEF = { ...DDTM_DEF, id: 'caph', name: "Porte du Hainaut (CAPH)" };
-const CAVM_DEF = { ...DDTM_DEF, id: 'cavm', name: "Valenciennes Métropole (CAVM)" };
-const CAD_DEF = { ...DDTM_DEF, id: 'cad', name: "Douaisis Agglo (CAD)" };
-const CAMVS_DEF = { ...DDTM_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMVS)" };
-const ALL_REFS_DEF = [DDTM_DEF, MEL_DEF, CUD_DEF, CAPH_DEF, CAVM_DEF, CAD_DEF, CAMVS_DEF];
-
-/**
- * ==========================================
- * 3. UTILITAIRES & SERVICES
+ * 2. UTILITAIRES & SERVICES
  * ==========================================
  */
 
@@ -110,7 +77,7 @@ const getRefIdFromEpci = (epciName: string) => {
     return 'ddtm';
 };
 
-// Services DB
+// --- Services DB ---
 // @ts-ignore
 const getCommunesCollection = () => collection(db, ...PUBLIC_DATA_PATH); 
 // @ts-ignore
@@ -143,13 +110,13 @@ const saveCommuneToDb = async (commune: CommuneData) => {
     // @ts-ignore
     const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
     
-    const dataToSave = { ...commune };
-    // @ts-ignore
+    // Copie pour nettoyage sans affecter l'objet original
+    const dataToSave: any = { ...commune };
     delete dataToSave.isApiSource;
     
     await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
     return true;
-  } catch (err) { return false; }
+  } catch { return false; }
 };
 
 const deleteCommuneFromDb = async (insee: string) => {
@@ -157,6 +124,62 @@ const deleteCommuneFromDb = async (insee: string) => {
         await deleteDoc(doc(db, ...PUBLIC_DATA_PATH, insee)); return true; 
     } catch { return false; }
 }
+
+const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
+    if (term.length < 2) return [];
+    try {
+        const response = await fetch(`https://geo.api.gouv.fr/communes?codeDepartement=59&nom=${term}&fields=nom,code,population,epci&boost=population&limit=5`);
+        const data = await response.json();
+        return data.map((item: any) => {
+            const epciName = item.epci ? item.epci.nom : "Non renseigné";
+            let autoDT = "À définir";
+            if (epciName.includes("Lille") || epciName.includes("Pévèle")) autoDT = "DDTM Métropole";
+            else if (epciName.includes("Dunkerque") || epciName.includes("Flandre")) autoDT = "Flandre Grand Littoral";
+            else if (epciName.includes("Valenciennes") || epciName.includes("Porte du Hainaut") || epciName.includes("Douaisis") || epciName.includes("Cambrai") || epciName.includes("Sambre")) autoDT = "Hainaut - Douaisis - Cambrésis";
+            return {
+                insee: item.code, name: item.nom, population: item.population, epci: epciName, directionTerritoriale: autoDT,
+                stats: { socialHousingRate: 0, targetRate: 20, deficit: false, exempt: false },
+                zoning: { accession: "C", rental: "3" }, 
+                isApiSource: true
+            };
+        });
+    } catch { return []; }
+};
+
+/**
+ * ==========================================
+ * 3. DONNÉES STATIQUES (CONSTANTES)
+ * ==========================================
+ */
+const FULL_DB_59 = [
+  // Echantillon pour initialisation
+  { insee: "59183", name: "Dunkerque", epci: "CU de Dunkerque", population: 86788, dt: "Flandre Grand Littoral", zA: "B2", zL: "2", sru: 35.0, cible: 25 },
+  { insee: "59350", name: "Lille", epci: "Métropole Européenne de Lille", population: 236710, dt: "DDTM Métropole", zA: "A", zL: "1", sru: 24.5, cible: 25 },
+  { insee: "59606", name: "Valenciennes", epci: "CA Valenciennes Métropole", population: 42991, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 28.0, cible: 20 },
+  { insee: "59173", name: "Douai", epci: "Douaisis Agglo", population: 39648, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 32.0, cible: 20 },
+  { insee: "59526", name: "Saint-Amand-les-Eaux", epci: "CA de la Porte du Hainaut", population: 15980, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.5, cible: 20 },
+  { insee: "59392", name: "Maubeuge", epci: "CA Maubeuge Val de Sambre", population: 29066, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 40.0, cible: 20 }
+];
+
+const DDTM_DEF = {
+    id: 'ddtm', name: 'DDTM 59 (Droit Commun)', lastUpdated: '01/01/2024',
+    subsidiesState: [{ type: "PLAI", amount: "13 500 €", condition: "/lgt" }, { type: "PLUS", amount: "5 400 €", condition: "/lgt" }],
+    subsidiesCD: [{ type: "CD PLAI", amount: "4 000 €", condition: "Forfait" }, { type: "CD PLUS", amount: "2 000 €", condition: "Forfait" }],
+    subsidiesNPNRU: [{ type: "ANRU", amount: "Variable", condition: "Selon conv." }],
+    marginsRE2020: [{ type: "Marge", product: "Tous", margin: "Selon perf" }],
+    marginsDivers: [{ type: "Marge", product: "Tous", margin: "Selon perf" }],
+    accessoryRents: [{ type: "Garage", product: "Annexes", maxRent: "60 €", condition: "Zone B1/B2" }],
+    footnotes: ["Document de référence interne."],
+    hasMargins: true, hasRents: true
+};
+
+const MEL_DEF = { ...DDTM_DEF, id: 'mel', name: 'Métropole Européenne de Lille' }; 
+const CUD_DEF = { ...DDTM_DEF, id: 'cud', name: 'Communauté Urbaine de Dunkerque' };
+const CAPH_DEF = { ...DDTM_DEF, id: 'caph', name: "Porte du Hainaut (CAPH)" };
+const CAVM_DEF = { ...DDTM_DEF, id: 'cavm', name: "Valenciennes Métropole (CAVM)" };
+const CAD_DEF = { ...DDTM_DEF, id: 'cad', name: "Douaisis Agglo (CAD)" };
+const CAMVS_DEF = { ...DDTM_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMVS)" };
+const ALL_REFS_DEF = [DDTM_DEF, MEL_DEF, CUD_DEF, CAPH_DEF, CAVM_DEF, CAD_DEF, CAMVS_DEF];
 
 const seedDatabase = async () => {
     const commSnap = await getDocs(getCommunesCollection());
@@ -176,27 +199,6 @@ const seedDatabase = async () => {
         await batch.commit();
     }
     return true;
-};
-
-const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
-    if (term.length < 2) return [];
-    try {
-        const response = await fetch(`https://geo.api.gouv.fr/communes?codeDepartement=59&nom=${term}&fields=nom,code,population,epci&boost=population&limit=5`);
-        const data = await response.json();
-        return data.map((item: any) => {
-            const epciName = item.epci ? item.epci.nom : "Non renseigné";
-            let autoDT = "À définir";
-            if (epciName.includes("Lille") || epciName.includes("Pévèle")) autoDT = "DDTM Métropole";
-            else if (epciName.includes("Dunkerque") || epciName.includes("Flandre")) autoDT = "Flandre Grand Littoral";
-            else if (epciName.includes("Valenciennes") || epciName.includes("Porte du Hainaut") || epciName.includes("Douaisis") || epciName.includes("Cambrai") || epciName.includes("Sambre")) autoDT = "Hainaut - Douaisis - Cambrésis";
-            return {
-                insee: item.code, name: item.nom, population: item.population, epci: epciName, directionTerritoriale: autoDT,
-                stats: { socialHousingRate: 0, targetRate: 20, deficit: false, exempt: false },
-                zoning: { accession: "C", rental: "3" }, // Défaut
-                isApiSource: true
-            };
-        });
-    } catch { return []; }
 };
 
 /**
@@ -356,10 +358,9 @@ const Dashboard = ({ data, isAdmin }: { data: CommuneData; isAdmin: boolean }) =
     useEffect(() => {
         const loadRef = async () => {
             const refId = getRefIdFromEpci(data.epci);
-            // Try fetch from DB first
             let r = await fetchReferenceData(refId);
             if (!r) {
-                // Fallback to default constants if not in DB yet
+                // Fallback local constants if not in DB yet
                 if(refId === 'mel') r = MEL_DEF;
                 else if(refId === 'cud') r = CUD_DEF;
                 else if(refId === 'caph') r = CAPH_DEF;
@@ -658,7 +659,7 @@ const App: React.FC = () => {
         {viewState === ViewState.RESULT && selectedCommune && (
           <div className="animate-fade-in max-w-7xl mx-auto">
              <button onClick={() => setViewState(ViewState.HOME)} className="text-xs text-slate-500 hover:text-blue-600 mb-4 inline-flex items-center gap-1">&larr; Retour</button>
-             <Dashboard data={selectedCommune} isAdmin={isAdmin} />
+             <Dashboard data={selectedCommune} isAdmin={false} />
           </div>
         )}
       </main>
