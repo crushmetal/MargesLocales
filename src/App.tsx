@@ -17,11 +17,12 @@ import {
 
 /**
  * ==========================================
- * 1. CONFIGURATION & TYPES
+ * 1. CONFIGURATION & CONSTANTES (GLOBALES)
  * ==========================================
  */
 
-// --- CONFIGURATION FIREBASE ---
+const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
+
 const firebaseConfig = {
   apiKey: "AIzaSyDOBFXdCfEH0IJ_OsIH7rHijYT_NEY1FGA",
   authDomain: "marges-locales59.firebaseapp.com",
@@ -31,7 +32,6 @@ const firebaseConfig = {
   appId: "1:1077584427724:web:39e529e17d4021110e6069"
 };
 
-// Initialisation
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -41,8 +41,6 @@ const PUBLIC_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'communes'];
 const REFS_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'references'];
 
 // --- TYPES ---
-const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
-
 export interface HousingStats { socialHousingRate: number; targetRate: number; deficit: boolean; exempt?: boolean; }
 export interface Zoning { accession: string; rental: string; }
 export interface Source { title: string; uri: string; }
@@ -51,107 +49,7 @@ export interface ReferenceData { id: string; name: string; lastUpdated: string; 
 
 /**
  * ==========================================
- * 2. UTILITAIRES & SERVICES
- * ==========================================
- */
-
-const parseCurrency = (v: string) => { 
-    if(!v) return 0;
-    const m = v.match(/(\d+)/g); return m ? Math.max(...m.map(n => parseInt(n))) : 0; 
-};
-
-const formatCurrency = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
-
-const getMarginValue = (marginStr: string, zoneRental: string) => {
-    if (!marginStr || !marginStr.includes("Z")) return marginStr;
-    if (zoneRental === "2" && marginStr.includes("Z2:")) return marginStr.match(/Z2:([^|]+)/)?.[1] || marginStr;
-    if (zoneRental === "3" && marginStr.includes("Z3:")) return marginStr.match(/Z3:([^|]+)/)?.[1] || marginStr;
-    return marginStr.replace("Z2:", "Z2: ").replace("|Z3:", " | Z3: ");
-};
-
-const getRefIdFromEpci = (epciName: string) => {
-    const n = (epciName || "").toLowerCase();
-    if (n.includes("lille")) return 'mel';
-    if (n.includes("dunkerque")) return 'cud';
-    if (n.includes("porte du hainaut")) return 'caph';
-    if (n.includes("douaisis") || n.includes("douai")) return 'cad';
-    if (n.includes("valenciennes") || n.includes("cavm")) return 'cavm';
-    if (n.includes("sambre") || n.includes("maubeuge")) return 'camvs';
-    return 'ddtm';
-};
-
-// --- SERVICES DB ---
-// @ts-ignore
-const getCommunesCollection = () => collection(db, ...PUBLIC_DATA_PATH); 
-// @ts-ignore
-const getRefsCollection = () => collection(db, ...REFS_DATA_PATH); 
-
-const fetchAllCommunes = async () => {
-  try { const snap = await getDocs(getCommunesCollection()); return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommuneData)); } catch { return []; }
-};
-
-const fetchReferenceData = async (epciId: string): Promise<ReferenceData | null> => {
-    try {
-        // @ts-ignore
-        const refDoc = await getDoc(doc(db, ...REFS_DATA_PATH, epciId));
-        if (refDoc.exists()) return refDoc.data() as ReferenceData;
-        return null;
-    } catch { return null; }
-};
-
-const saveReferenceData = async (data: ReferenceData) => {
-    try {
-        // @ts-ignore
-        await setDoc(doc(db, ...REFS_DATA_PATH, data.id), data);
-        return true;
-    } catch (e) { console.error(e); return false; }
-};
-
-const saveCommuneToDb = async (commune: CommuneData) => {
-  try {
-    const docId = commune.insee;
-    // @ts-ignore
-    const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
-    
-    // Copie pour éviter les erreurs de variables inutilisées
-    const dataToSave: any = { ...commune };
-    delete dataToSave.isApiSource;
-    
-    await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
-    return true;
-  } catch { return false; }
-};
-
-const deleteCommuneFromDb = async (insee: string) => {
-    try { // @ts-ignore
-        await deleteDoc(doc(db, ...PUBLIC_DATA_PATH, insee)); return true; 
-    } catch { return false; }
-}
-
-const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
-    if (term.length < 2) return [];
-    try {
-        const response = await fetch(`https://geo.api.gouv.fr/communes?codeDepartement=59&nom=${term}&fields=nom,code,population,epci&boost=population&limit=5`);
-        const data = await response.json();
-        return data.map((item: any) => {
-            const epciName = item.epci ? item.epci.nom : "Non renseigné";
-            let autoDT = "À définir";
-            if (epciName.includes("Lille") || epciName.includes("Pévèle")) autoDT = "DDTM Métropole";
-            else if (epciName.includes("Dunkerque") || epciName.includes("Flandre")) autoDT = "Flandre Grand Littoral";
-            else if (epciName.includes("Valenciennes") || epciName.includes("Porte du Hainaut") || epciName.includes("Douaisis") || epciName.includes("Cambrai") || epciName.includes("Sambre")) autoDT = "Hainaut - Douaisis - Cambrésis";
-            return {
-                insee: item.code, name: item.nom, population: item.population, epci: epciName, directionTerritoriale: autoDT,
-                stats: { socialHousingRate: 0, targetRate: 20, deficit: false, exempt: false },
-                zoning: { accession: "C", rental: "3" }, // Défaut
-                isApiSource: true
-            };
-        });
-    } catch { return []; }
-};
-
-/**
- * ==========================================
- * 3. DONNÉES STATIQUES (SEED)
+ * 2. DONNÉES STATIQUES (SEED)
  * ==========================================
  */
 const FULL_DB_59 = [
@@ -226,7 +124,7 @@ const FULL_DB_59 = [
   { insee: "59122", name: "Cambrai", epci: "CA de Cambrai", population: 31425, dt: "Hainaut - Douaisis - Cambrésis", zA: "C", zL: "3", sru: 22.0, cible: 20 },
   { insee: "59392", name: "Maubeuge", epci: "CA Maubeuge Val de Sambre", population: 29066, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 40.0, cible: 20 },
   { insee: "59321", name: "Jeumont", epci: "CA Maubeuge Val de Sambre", population: 10342, dt: "Hainaut - Douaisis - Cambrésis", zA: "C", zL: "2", sru: 25.0, cible: 20 },
-  { insee: "59033", name: "Aulnoye-Aymeries", epci: "CA Maubeuge Val de Sambre", population: 8756, dt: "Hainaut - Douaisis - Cambrésis", zA: "C", zL: "2", sru: 25.0, cible: 20 },
+  { insee: "59033", name: "Aulnoye-Aymeries", epci: "CA Maubeuge Val de Sambre", population: 8756, dt: "Hainaut - Douaisis - Cambrésis", zA: "C", zL: "2", sru: 35.0, cible: 20 },
   { insee: "59574", name: "Somain", epci: "CC Cœur d'Ostrevent", population: 11790, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 },
   { insee: "59008", name: "Aniche", epci: "CC Cœur d'Ostrevent", population: 9997, dt: "Hainaut - Douaisis - Cambrésis", zA: "B2", zL: "2", sru: 25.0, cible: 20 }
 ];
@@ -342,7 +240,7 @@ const CUD_DEF = {
     subsidiesNPNRU: [
         { type: "Subv. PLAI", amount: "6 300+1 500", condition: "Doublé si AA" },
         { type: "Prêt PLAI", amount: "7 900+1 900", condition: "Doublé si AA" },
-        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Double si AA" }
+        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Doublé si AA" }
     ],
     subsidiesCD: [
         { type: "CD PLAI", amount: "27 000 €", condition: "Forfait" },
@@ -470,6 +368,7 @@ const CAVM_DEF = { ...CUD_DEF, id: 'cavm', name: "Valenciennes Métropole (CAVM)
         { type: "Zone 3 Certifié", product: "PLUS", margin: "8%" }
     ],
     accessoryRents: CAPH_DEF.accessoryRents, // Mêmes loyers que CAPH
+    hasMargins: true, hasRents: true
 };
 
 // 6. CAD
@@ -537,6 +436,90 @@ const CAMVS_DEF = { ...CUD_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMV
 
 const ALL_REFS_DEF = [DDTM_DEF, MEL_DEF, CUD_DEF, CAPH_DEF, CAVM_DEF, CAD_DEF, CAMVS_DEF];
 
+/**
+ * ==========================================
+ * 4. SERVICES
+ * ==========================================
+ */
+
+// --- UTILS ---
+const getRefIdFromEpci = (epciName: string) => {
+    const n = (epciName || "").toLowerCase();
+    if (n.includes("lille")) return 'mel';
+    if (n.includes("dunkerque")) return 'cud';
+    if (n.includes("porte du hainaut")) return 'caph';
+    if (n.includes("douaisis") || n.includes("douai")) return 'cad';
+    if (n.includes("valenciennes") || n.includes("cavm")) return 'cavm';
+    if (n.includes("sambre") || n.includes("maubeuge")) return 'camvs';
+    return 'ddtm';
+};
+
+const parseCurrency = (v: string) => { 
+    if(!v) return 0;
+    const m = v.match(/(\d+)/g); return m ? Math.max(...m.map(n => parseInt(n))) : 0; 
+};
+
+const formatCurrency = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+
+const getMarginValue = (marginStr: string, zoneRental: string) => {
+    if (!marginStr || !marginStr.includes("Z")) return marginStr;
+    if (zoneRental === "2" && marginStr.includes("Z2:")) return marginStr.match(/Z2:([^|]+)/)?.[1] || marginStr;
+    if (zoneRental === "3" && marginStr.includes("Z3:")) return marginStr.match(/Z3:([^|]+)/)?.[1] || marginStr;
+    return marginStr.replace("Z2:", "Z2: ").replace("|Z3:", " | Z3: ");
+};
+
+// --- SERVICES DB ---
+// @ts-ignore
+const getCommunesCollection = () => collection(db, ...PUBLIC_DATA_PATH); 
+// @ts-ignore
+const getRefsCollection = () => collection(db, ...REFS_DATA_PATH); 
+
+const fetchAllCommunes = async () => {
+  try { const snap = await getDocs(getCommunesCollection()); return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommuneData)); } catch { return []; }
+};
+
+const fetchReferenceData = async (epciId: string): Promise<ReferenceData | null> => {
+    try {
+        // @ts-ignore
+        const refDoc = await getDoc(doc(db, ...REFS_DATA_PATH, epciId));
+        if (refDoc.exists()) return refDoc.data() as ReferenceData;
+        return null;
+    } catch { return null; }
+};
+
+const saveReferenceData = async (data: ReferenceData) => {
+    try {
+        // @ts-ignore
+        await setDoc(doc(db, ...REFS_DATA_PATH, data.id), data);
+        return true;
+    } catch (e) { console.error(e); return false; }
+};
+
+const saveCommuneToDb = async (commune: CommuneData) => {
+  try {
+    const docId = commune.insee;
+    // @ts-ignore
+    const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
+    
+    // Create copy to modify without affecting original object reference
+    const dataToSave = { ...commune };
+    // Remove the API flag before saving to DB
+    if ('isApiSource' in dataToSave) {
+        // @ts-ignore
+        delete dataToSave.isApiSource;
+    }
+    
+    await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
+    return true;
+  } catch (err) { return false; }
+};
+
+const deleteCommuneFromDb = async (insee: string) => {
+    try { // @ts-ignore
+        await deleteDoc(doc(db, ...PUBLIC_DATA_PATH, insee)); return true; 
+    } catch { return false; }
+}
+
 const seedDatabase = async () => {
     const commSnap = await getDocs(getCommunesCollection());
     if (commSnap.empty) {
@@ -558,6 +541,238 @@ const seedDatabase = async () => {
     return true;
 };
 
+// --- API GEO & UTILS ---
+const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
+    if (term.length < 2) return [];
+    try {
+        const response = await fetch(`https://geo.api.gouv.fr/communes?codeDepartement=59&nom=${term}&fields=nom,code,population,epci&boost=population&limit=5`);
+        const data = await response.json();
+        return data.map((item: any) => {
+            const epciName = item.epci ? item.epci.nom : "Non renseigné";
+            let autoDT = "À définir";
+            if (epciName.includes("Lille") || epciName.includes("Pévèle")) autoDT = "DDTM Métropole";
+            else if (epciName.includes("Dunkerque") || epciName.includes("Flandre")) autoDT = "Flandre Grand Littoral";
+            else if (epciName.includes("Valenciennes") || epciName.includes("Porte du Hainaut") || epciName.includes("Douaisis") || epciName.includes("Cambrai") || epciName.includes("Sambre")) autoDT = "Hainaut - Douaisis - Cambrésis";
+            return {
+                insee: item.code, name: item.nom, population: item.population, epci: epciName, directionTerritoriale: autoDT,
+                stats: { socialHousingRate: 0, targetRate: 20, deficit: false, exempt: false },
+                zoning: { accession: "C", rental: "3" }, // Défaut
+                isApiSource: true
+            };
+        });
+    } catch { return []; }
+};
+
+/**
+ * ==========================================
+ * 5. COMPOSANTS UI
+ * ==========================================
+ */
+
+const StatsCard = ({ title, value, subValue, icon, alert, isApiGenerated }: any) => (
+  <div className={`relative bg-white rounded-lg shadow-sm p-3 border-l-4 ${alert ? 'border-red-500' : 'border-brand-500'} flex items-start justify-between overflow-hidden group hover:shadow-md h-full`}>
+    {isApiGenerated && <div className="absolute top-0 right-0 bg-yellow-50 text-yellow-700 px-1.5 py-0.5 rounded-bl text-[8px] font-bold uppercase flex items-center gap-1 border-b border-l border-yellow-200"><CloudDownload className="w-2 h-2" /> API</div>}
+    <div>
+      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">{title}</p>
+      <p className={`text-lg font-bold leading-tight ${isApiGenerated ? 'text-gray-700' : 'text-gray-900'}`}>{value}</p>
+      {subValue && <p className="text-[10px] text-gray-500 mt-0.5">{subValue}</p>}
+    </div>
+    {icon && <div className="text-blue-600 p-1.5 bg-blue-50 rounded-md">{React.cloneElement(icon, { size: 16 })}</div>}
+  </div>
+);
+
+const SectionTable = ({ title, data, columns, headerColor = "bg-gray-100 text-gray-800", alert, onEdit }: { title: string; data: any[]; columns: any[]; headerColor?: string; alert?: boolean; onEdit?: (idx: number, field: string, val: string) => void }) => {
+    if (!data || data.length === 0) return null;
+    return (
+        <div className={`border rounded-lg overflow-hidden border-gray-200 shadow-sm flex flex-col`}>
+            <div className={`px-3 py-1.5 border-b border-gray-200 font-bold text-[11px] ${alert ? 'bg-red-50 text-red-700 border-red-100' : headerColor} flex justify-between items-center`}>
+                <span>{title}</span>
+            </div>
+            <div className="overflow-auto">
+                <table className="w-full text-[10px]">
+                    <thead className="bg-gray-50 text-gray-500 sticky top-0">
+                        <tr>{columns.map((col, idx) => <th key={idx} className="px-2 py-1 text-left font-medium">{col.header}</th>)}</tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                        {data.map((row, rIdx) => (
+                            <tr key={rIdx} className="hover:bg-gray-50">
+                                {columns.map((col, cIdx) => (
+                                    <td key={cIdx} className={`px-2 py-1 ${col.isBold ? 'font-bold' : 'text-gray-700'}`}>
+                                        {onEdit ? (
+                                            <input 
+                                                className="w-full bg-transparent border-b border-transparent focus:border-blue-500 focus:bg-white outline-none"
+                                                value={row[col.accessor] || ''}
+                                                onChange={(e) => onEdit(rIdx, col.accessor, e.target.value)}
+                                            />
+                                        ) : (
+                                            col.render ? col.render(row) : (col.accessor ? row[col.accessor] : "")
+                                        )}
+                                    </td>
+                                ))}
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    );
+};
+
+const ReferenceTable = ({ data, communeZone, isAdmin, onSave }: { data: ReferenceData; communeZone: string; isAdmin: boolean; onSave: (newData: ReferenceData) => void }) => {
+    const [editData, setEditData] = useState<ReferenceData | null>(null);
+
+    useEffect(() => { setEditData(null); }, [data.id]);
+
+    const handleEditStart = () => setEditData(JSON.parse(JSON.stringify(data)));
+    const handleEditSave = () => { if(editData) { onSave(editData); setEditData(null); } };
+    const handleCancel = () => setEditData(null);
+
+    const currentData = editData || data;
+    const isEditing = !!editData;
+
+    const updateSection = (section: keyof ReferenceData, index: number, field: string, value: string) => {
+        if (!editData) return;
+        const list = [...(editData[section] as any[])];
+        list[index] = { ...list[index], [field]: value };
+        setEditData({ ...editData, [section]: list });
+    };
+
+    return (
+        <div className={`bg-white rounded-xl shadow-lg border ${isEditing ? 'border-yellow-400 ring-2 ring-yellow-100' : 'border-gray-200'} overflow-hidden mt-6 transition-all`}>
+            <div className="bg-gray-800 text-white px-4 py-2 flex justify-between items-center">
+                <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-sm flex items-center gap-2"><FileText className="w-4 h-4"/> {isEditing ? 'ÉDITION : ' : ''}Référentiel : {data.name}</h3>
+                    {isEditing && <span className="bg-yellow-500 text-black text-[9px] px-2 py-0.5 rounded font-bold">MODE ÉDITION</span>}
+                </div>
+                
+                {isAdmin && !isEditing && (
+                    <button onClick={handleEditStart} className="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 rounded flex items-center gap-1"><Edit3 className="w-3 h-3"/> Modifier les règles</button>
+                )}
+                {isAdmin && isEditing && (
+                    <div className="flex gap-2">
+                        <button onClick={handleCancel} className="text-xs bg-gray-600 hover:bg-gray-500 px-2 py-1 rounded">Annuler</button>
+                        <button onClick={handleEditSave} className="text-xs bg-green-600 hover:bg-green-500 px-2 py-1 rounded flex items-center gap-1"><Save className="w-3 h-3"/> Enregistrer</button>
+                    </div>
+                )}
+            </div>
+
+            <div className="p-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div className="space-y-3">
+                    <SectionTable title="1. Subventions État" data={currentData.subsidiesState} headerColor="bg-blue-100 text-blue-900" columns={[{ header: "Type", accessor: "type" }, { header: "Montant", accessor: "amount", isBold: true }, { header: "Cond.", accessor: "condition" }]} onEdit={isEditing ? (i,f,v) => updateSection('subsidiesState', i, f, v) : undefined} />
+                    <SectionTable title={`2. Aides EPCI (${data.id.toUpperCase()})`} data={currentData.subsidiesEPCI || []} headerColor="bg-orange-100 text-orange-900" columns={[{ header: "Type", accessor: "type" }, { header: "Montant", accessor: "amount", isBold: true }, { header: "Cond.", accessor: "condition" }]} onEdit={isEditing ? (i,f,v) => updateSection('subsidiesEPCI', i, f, v) : undefined} />
+                </div>
+                <div className="space-y-3">
+                    <SectionTable title="3. Aides NPNRU" data={currentData.subsidiesNPNRU} headerColor="bg-purple-100 text-purple-900" columns={[{ header: "Type", accessor: "type" }, { header: "Montant", accessor: "amount", isBold: true }, { header: "Cond.", accessor: "condition" }]} onEdit={isEditing ? (i,f,v) => updateSection('subsidiesNPNRU', i, f, v) : undefined} />
+                    <SectionTable title="4. Conseil Départemental (CD)" data={currentData.subsidiesCD} headerColor="bg-green-100 text-green-900" columns={[{ header: "Type", accessor: "type" }, { header: "Montant", accessor: "amount", isBold: true }, { header: "Cond.", accessor: "condition" }]} onEdit={isEditing ? (i,f,v) => updateSection('subsidiesCD', i, f, v) : undefined} />
+                </div>
+                <div className="space-y-3">
+                    <SectionTable title="5A. Marges RE 2020" data={currentData.marginsRE2020 || []} headerColor="bg-orange-100 text-orange-900" columns={[{ header: "Critère", accessor: "type" }, { header: "Produit", accessor: "product" }, { header: "Marge", accessor: "margin", isBold: true, render: isEditing ? undefined : (row: any) => <span className="font-bold text-orange-700">{getMarginValue(row.margin, communeZone)}</span> }]} onEdit={isEditing ? (i,f,v) => updateSection('marginsRE2020', i, f, v) : undefined} />
+                    <SectionTable title="5B. Marges Diverses" data={currentData.marginsDivers || []} headerColor="bg-orange-50 text-orange-800" columns={[{ header: "Critère", accessor: "type" }, { header: "Produit", accessor: "product" }, { header: "Marge", accessor: "margin", isBold: true, render: isEditing ? undefined : (row: any) => <span className="font-bold text-orange-700">{getMarginValue(row.margin, communeZone)}</span> }]} onEdit={isEditing ? (i,f,v) => updateSection('marginsDivers', i, f, v) : undefined} />
+                    <SectionTable title="6. Loyers Accessoires" data={currentData.accessoryRents || []} headerColor="bg-yellow-100 text-yellow-900" columns={[{ header: "Type", accessor: "type" }, { header: "Produit", accessor: "product" }, { header: "Loyer Max", accessor: "maxRent", isBold: true }, { header: "Cond.", accessor: "condition" }]} onEdit={isEditing ? (i,f,v) => updateSection('accessoryRents', i, f, v) : undefined} />
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const SimulationPanel = ({ referenceData }: { referenceData: ReferenceData }) => {
+  const [isOpen, setIsOpen] = useState(false);
+  const [plai, setPlai] = useState(0);
+  const [plus, setPlus] = useState(0);
+  const [pls, setPls] = useState(0);
+  const [includeCD, setIncludeCD] = useState(true);
+
+  const calculateTotal = () => {
+     let total = 0;
+     const statePLAI = parseCurrency(referenceData.subsidiesState.find(s => s.type.includes("PLAI") || s.type.includes("DC"))?.amount || "0");
+     const statePLUS = parseCurrency(referenceData.subsidiesState.find(s => s.type.includes("PLUS"))?.amount || "0");
+     total += (plai * statePLAI) + (plus * statePLUS);
+     if(referenceData.subsidiesEPCI) {
+         const epciAmount = parseCurrency(referenceData.subsidiesEPCI[0]?.amount || "0");
+         total += ((plai + plus) * epciAmount);
+     }
+     const cdPLAI = parseCurrency(referenceData.subsidiesCD.find(s => s.type.includes("PLAI"))?.amount || "0");
+     if(includeCD) total += (plai * cdPLAI) + (plus * (cdPLAI/2)); 
+     return total;
+  };
+
+  if(!isOpen) return <div className="flex justify-center mt-6"><button onClick={() => setIsOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-full shadow-md flex items-center gap-2 font-bold text-sm transition-transform hover:scale-105"><Calculator className="w-4 h-4" /> Simuler les aides</button></div>;
+
+  return (
+      <div className="mt-6 bg-white rounded-xl shadow-lg border border-blue-100 overflow-hidden animate-fade-in">
+          <div className="bg-blue-600 px-4 py-2 flex justify-between items-center text-white"><h3 className="font-bold flex items-center gap-2 text-sm"><Calculator className="w-4 h-4"/> Simulateur Rapide</h3><div className="flex gap-2"><button onClick={() => setIncludeCD(!includeCD)} className={`p-1 rounded ${includeCD ? 'text-green-600 bg-green-100' : 'text-gray-400 bg-gray-100'}`}>{includeCD ? <CheckSquare className="w-4 h-4"/> : <Square className="w-4 h-4"/>}</button><button onClick={() => setIsOpen(false)}><ChevronUp className="w-4 h-4"/></button></div></div>
+          <div className="p-4">
+              <div className="grid grid-cols-3 gap-2 mb-4">
+                  <div className="bg-blue-50 p-2 rounded"><label className="block text-[10px] font-bold text-blue-800 mb-1">Nb PLAI</label><input type="number" min="0" value={plai} onChange={e => setPlai(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
+                  <div className="bg-orange-50 p-2 rounded"><label className="block text-[10px] font-bold text-orange-800 mb-1">Nb PLUS</label><input type="number" min="0" value={plus} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
+                  <div className="bg-green-50 p-2 rounded"><label className="block text-[10px] font-bold text-green-800 mb-1">Nb PLS</label><input type="number" min="0" value={pls} onChange={e => setPls(parseInt(e.target.value)||0)} className="w-full text-center font-bold text-sm bg-white border rounded p-1" /></div>
+              </div>
+              <div className="bg-gray-900 text-white p-3 rounded-lg text-center"><p className="text-gray-400 text-[10px] uppercase tracking-wider mb-1">Total Estimé</p><p className="text-2xl font-bold text-green-400">{formatCurrency(calculateTotal())}</p></div>
+          </div>
+      </div>
+  );
+};
+
+const Dashboard = ({ data, isAdmin }: { data: CommuneData; isAdmin: boolean }) => {
+    const [refData, setRefData] = useState<ReferenceData | null>(null);
+    const isPinel = ["A", "Abis", "B1"].includes(data.zoning.accession);
+
+    useEffect(() => {
+        const loadRef = async () => {
+            const refId = getRefIdFromEpci(data.epci);
+            // Try fetch from DB first
+            let r = await fetchReferenceData(refId);
+            if (!r) {
+                // Fallback to default constants if not in DB yet
+                if(refId === 'mel') r = MEL_DEF;
+                else if(refId === 'cud') r = CUD_DEF;
+                else if(refId === 'caph') r = CAPH_DEF;
+                else if(refId === 'cavm') r = CAVM_DEF;
+                else if(refId === 'cad') r = CAD_DEF;
+                else if(refId === 'camvs') r = CAMVS_DEF;
+                else r = DDTM_DEF;
+            }
+            setRefData(r);
+        };
+        loadRef();
+    }, [data.epci]);
+
+    const handleRefSave = async (newData: ReferenceData) => {
+        await saveReferenceData(newData);
+        setRefData(newData);
+    };
+
+    return (
+        <div className="max-w-7xl mx-auto px-4 py-4">
+            <div className="flex justify-between items-center gap-4 mb-4 border-b pb-3">
+                <div>
+                    <h2 className="text-xl font-bold text-gray-900 flex items-center gap-2"><Landmark className="w-5 h-5 text-blue-600" /> {data.name}<span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{data.epci}</span></h2>
+                    {data.directionTerritoriale && <div className="flex items-center gap-2 mt-1 text-[10px] text-gray-600 ml-1"><MapPinned className="w-3 h-3 text-blue-500" /><span>DT : <strong>{data.directionTerritoriale}</strong></span></div>}
+                </div>
+                <div className="flex gap-2">
+                    {data.isApiSource && <span className="flex items-center gap-1 bg-yellow-50 text-yellow-700 px-2 py-1 rounded border border-yellow-200 text-[10px]"><CloudDownload className="w-3 h-3" /> Donnée API</span>}
+                    {isPinel && <div className="flex items-center gap-1 bg-green-50 text-green-800 px-2 py-1 rounded border border-green-100 text-[10px]"><Target className="w-3 h-3" /> <span className="font-bold">Eligible Pinel</span></div>}
+                    {data.stats.exempt && <div className="flex items-center gap-1 bg-indigo-50 text-indigo-800 px-2 py-1 rounded border border-indigo-100 text-[10px]"><BadgeCheck className="w-3 h-3" /> <span className="font-bold">Exonérée</span></div>}
+                </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-4">
+                <StatsCard title="Population" value={data.population.toLocaleString()} icon={<Users className="w-3 h-3"/>} />
+                <StatsCard title="Taux SRU" value={`${data.stats.socialHousingRate}%`} subValue={`Cible: ${data.stats.targetRate}%`} alert={data.stats.deficit} icon={data.stats.deficit ? <AlertTriangle className="w-3 h-3 text-red-500"/> : <CheckCircle className="w-3 h-3 text-green-500"/>} isApiGenerated={data.isApiSource} />
+                <StatsCard title="Zone Accession" value={data.zoning.accession} subValue={isPinel ? "Zone Pinel" : "Non Pinel"} icon={<MapPin className="w-3 h-3"/>} isApiGenerated={data.isApiSource} />
+                <StatsCard title="Zone Locative" value={data.zoning.rental} subValue="PLUS / PLAI" icon={<Building2 className="w-3 h-3"/>} isApiGenerated={data.isApiSource} />
+            </div>
+            
+            {refData ? (
+                <>
+                    <ReferenceTable data={refData} communeZone={data.zoning.rental} isAdmin={isAdmin} onSave={handleRefSave} />
+                    <SimulationPanel referenceData={refData} />
+                </>
+            ) : <div className="p-8 text-center text-gray-400">Chargement du référentiel...</div>}
+        </div>
+    );
+};
+
+// --- ADMIN COMMUNE ---
 const AdminCommuneEditor = ({ onClose, initialData }: { onClose: () => void; initialData: CommuneData[] }) => {
   const [communes, setCommunes] = useState<CommuneData[]>(initialData);
   const [search, setSearch] = useState("");
@@ -736,7 +951,7 @@ const App: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
-  const [allCommunes, setAllCommunes] = useState<CommuneData[]>([]);
+  const [allCommunes, setAllCommunes] = useState<CommuneData[]>(FULL_DB_59); // Initialize with default data
 
   useEffect(() => {
     // Connexion anonyme simplifiée
@@ -746,7 +961,9 @@ const App: React.FC = () => {
 
   useEffect(() => {
       if(user) {
-          seedDatabase().then(() => fetchAllCommunes().then(setAllCommunes));
+          seedDatabase().then(() => fetchAllCommunes().then((res) => {
+              if (res.length > 0) setAllCommunes(res);
+          }));
       }
   }, [user]);
 
@@ -755,7 +972,14 @@ const App: React.FC = () => {
         if (searchTerm.length < 2) { setSuggestions([]); return; }
         setLoading(true);
         const localMatches = allCommunes.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 5);
-        const apiRes = await searchGeoApi(searchTerm);
+        
+        let apiRes: CommuneData[] = [];
+        try {
+           apiRes = await searchGeoApi(searchTerm);
+        } catch (e) {
+           console.warn("API Gouv unavailable", e);
+        }
+
         const merged = [...localMatches];
         apiRes.forEach(apiC => {
             if(!merged.find(m => m.insee === apiC.insee)) merged.push(apiC);
