@@ -3,7 +3,7 @@ import {
   Search, MapPin, Building2, Users, AlertTriangle, 
   CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
   X, Calculator, ChevronUp, CheckSquare, Square, 
-  Landmark, BadgeCheck, MapPinned, Target, Download, FileText, Edit3
+  Landmark, BadgeCheck, MapPinned, Target, Download, FileText, Edit3, Bug
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -30,6 +30,7 @@ const firebaseConfig = {
   appId: "1:1077584427724:web:39e529e17d4021110e6069"
 };
 
+// Initialisation
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -38,6 +39,7 @@ const APP_ID = 'nord-habitat-v1';
 const PUBLIC_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'communes'];
 const REFS_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'references'];
 
+// --- TYPES ---
 const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
 
 export interface HousingStats { socialHousingRate: number; targetRate: number; deficit: boolean; exempt?: boolean; }
@@ -84,7 +86,13 @@ const getCommunesCollection = () => collection(db, ...PUBLIC_DATA_PATH);
 const getRefsCollection = () => collection(db, ...REFS_DATA_PATH); 
 
 const fetchAllCommunes = async () => {
-  try { const snap = await getDocs(getCommunesCollection()); return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommuneData)); } catch { return []; }
+  try { 
+      const snap = await getDocs(getCommunesCollection()); 
+      return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommuneData)); 
+  } catch (error) { 
+      console.error("DB Error:", error);
+      throw error; // Propagate error for debug
+  }
 };
 
 const fetchReferenceData = async (epciId: string): Promise<ReferenceData | null> => {
@@ -110,9 +118,8 @@ const saveCommuneToDb = async (commune: CommuneData) => {
     // @ts-ignore
     const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
     
-    const dataToSave = { ...commune };
-    // @ts-ignore
-    delete dataToSave.isApiSource;
+    const dataToSave: any = { ...commune };
+    if ('isApiSource' in dataToSave) delete dataToSave.isApiSource;
     
     await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
     return true;
@@ -148,7 +155,7 @@ const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
 
 /**
  * ==========================================
- * 3. DONNÉES STATIQUES (SEED & FALLBACK)
+ * 3. DONNÉES STATIQUES (SEED)
  * ==========================================
  */
 const FULL_DB_59 = [
@@ -807,6 +814,10 @@ const App: React.FC = () => {
                 <h1 className="text-3xl font-bold text-slate-900 mb-4">Référentiel Habitat <span className="text-blue-600">Nord (59)</span></h1>
                 <p className="text-slate-500 mb-8">Base de données complète avec édition des référentiels en ligne.</p>
                 {isAdmin && <div className="text-green-600 font-bold text-sm bg-green-50 p-2 rounded border border-green-200">Mode Administrateur Actif</div>}
+             </div>
+             {/* ADDED DEBUG: Show Auth and DB Status if needed */}
+             <div className="mt-4 p-2 bg-gray-100 rounded text-xs text-gray-500 font-mono">
+                {user ? "Online (DB Connected)" : "Offline (Local Mode)"}
              </div>
           </div>
         )}
