@@ -3,7 +3,7 @@ import {
   Search, MapPin, Building2, Users, AlertTriangle, 
   CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
   X, Calculator, ChevronUp, CheckSquare, Square, 
-  Landmark, BadgeCheck, MapPinned, Target, Download, FileText, Edit3, ShieldAlert
+  Landmark, BadgeCheck, MapPinned, Target, Download, FileText, Edit3, ShieldAlert, Activity
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -21,6 +21,7 @@ import {
  * ==========================================
  */
 
+// --- CONFIGURATION FIREBASE ---
 const firebaseConfig = {
   apiKey: "AIzaSyDOBFXdCfEH0IJ_OsIH7rHijYT_NEY1FGA",
   authDomain: "marges-locales59.firebaseapp.com",
@@ -30,15 +31,16 @@ const firebaseConfig = {
   appId: "1:1077584427724:web:39e529e17d4021110e6069"
 };
 
+// Initialisation
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 
 const APP_ID = 'nord-habitat-v1'; 
-// Utilisation directe des chaines pour éviter les erreurs de spread
-const COMMUNES_COLLECTION_PATH = ['artifacts', APP_ID, 'public', 'data', 'communes'];
-const REFS_COLLECTION_PATH = ['artifacts', APP_ID, 'public', 'data', 'references'];
+const PUBLIC_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'communes'];
+const REFS_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'references'];
 
+// --- TYPES ---
 const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
 
 export interface HousingStats { socialHousingRate: number; targetRate: number; deficit: boolean; exempt?: boolean; }
@@ -49,7 +51,7 @@ export interface ReferenceData { id: string; name: string; lastUpdated: string; 
 
 /**
  * ==========================================
- * 2. UTILITAIRES
+ * 2. UTILITAIRES & SERVICES
  * ==========================================
  */
 
@@ -79,16 +81,11 @@ const getRefIdFromEpci = (epciName: string) => {
     return 'ddtm';
 };
 
-/**
- * ==========================================
- * 3. SERVICES DB & API
- * ==========================================
- */
-
+// --- SERVICES DB ---
 // @ts-ignore
-const getCommunesCollection = () => collection(db, 'artifacts', APP_ID, 'public', 'data', 'communes');
+const getCommunesCollection = () => collection(db, ...PUBLIC_DATA_PATH); 
 // @ts-ignore
-const getRefsCollection = () => collection(db, 'artifacts', APP_ID, 'public', 'data', 'references');
+const getRefsCollection = () => collection(db, ...REFS_DATA_PATH); 
 
 const fetchAllCommunes = async () => {
   try { 
@@ -103,7 +100,7 @@ const fetchAllCommunes = async () => {
 const fetchReferenceData = async (epciId: string): Promise<ReferenceData | null> => {
     try {
         // @ts-ignore
-        const refDoc = await getDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'references', epciId));
+        const refDoc = await getDoc(doc(db, ...REFS_DATA_PATH, epciId));
         if (refDoc.exists()) return refDoc.data() as ReferenceData;
         return null;
     } catch { return null; }
@@ -112,7 +109,7 @@ const fetchReferenceData = async (epciId: string): Promise<ReferenceData | null>
 const saveReferenceData = async (data: ReferenceData) => {
     try {
         // @ts-ignore
-        await setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'references', data.id), data);
+        await setDoc(doc(db, ...REFS_DATA_PATH, data.id), data);
         return true;
     } catch (e) { console.error(e); return false; }
 };
@@ -121,19 +118,19 @@ const saveCommuneToDb = async (commune: CommuneData) => {
   try {
     const docId = commune.insee;
     // @ts-ignore
-    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'communes', docId);
+    const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
+    
     const dataToSave: any = { ...commune };
-    if (dataToSave.isApiSource) delete dataToSave.isApiSource;
+    if ('isApiSource' in dataToSave) delete dataToSave.isApiSource;
+    
     await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
     return true;
   } catch (err) { return false; }
 };
 
 const deleteCommuneFromDb = async (insee: string) => {
-    try { 
-        // @ts-ignore
-        await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'communes', insee)); 
-        return true; 
+    try { // @ts-ignore
+        await deleteDoc(doc(db, ...PUBLIC_DATA_PATH, insee)); return true; 
     } catch { return false; }
 }
 
@@ -151,7 +148,7 @@ const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
             return {
                 insee: item.code, name: item.nom, population: item.population, epci: epciName, directionTerritoriale: autoDT,
                 stats: { socialHousingRate: 0, targetRate: 20, deficit: false, exempt: false },
-                zoning: { accession: "C", rental: "3" }, 
+                zoning: { accession: "C", rental: "3" }, // Défaut
                 isApiSource: true
             };
         });
@@ -160,7 +157,7 @@ const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
 
 /**
  * ==========================================
- * 4. DONNÉES STATIQUES (SEED)
+ * 3. DONNÉES STATIQUES & SEED
  * ==========================================
  */
 const FULL_DB_59: CommuneData[] = [
