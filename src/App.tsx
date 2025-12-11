@@ -12,7 +12,7 @@ import {
   getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch 
 } from 'firebase/firestore';
 import { 
-  getAuth, signInAnonymously, onAuthStateChanged, User 
+  getAuth, signInAnonymously, onAuthStateChanged 
 } from 'firebase/auth';
 
 /**
@@ -113,9 +113,13 @@ const saveCommuneToDb = async (commune: CommuneData) => {
     // @ts-ignore
     const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
     
-    // Copie propre pour éviter les erreurs de variables inutilisées
-    const dataToSave: any = { ...commune };
-    delete dataToSave.isApiSource;
+    // Create copy to modify without affecting original object reference
+    const dataToSave = { ...commune };
+    // Remove the API flag before saving to DB
+    if ('isApiSource' in dataToSave) {
+        // @ts-ignore
+        delete dataToSave.isApiSource;
+    }
     
     await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
     return true;
@@ -151,7 +155,7 @@ const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
 
 /**
  * ==========================================
- * 3. DONNÉES STATIQUES & SEED
+ * 3. DONNÉES DE DÉMARRAGE (SEED)
  * ==========================================
  */
 const FULL_DB_59 = [
@@ -342,7 +346,7 @@ const CUD_DEF = {
     subsidiesNPNRU: [
         { type: "Subv. PLAI", amount: "6 300+1 500", condition: "Doublé si AA" },
         { type: "Prêt PLAI", amount: "7 900+1 900", condition: "Doublé si AA" },
-        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Doublé si AA" }
+        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Double si AA" }
     ],
     subsidiesCD: [
         { type: "CD PLAI", amount: "27 000 €", condition: "Forfait" },
@@ -367,16 +371,17 @@ const CUD_DEF = {
         { type: "BBC Rénov 2024", product: "PLUS", margin: "Z2:4%|Z3:7%" }
     ],
     accessoryRents: [
-        { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Garage", product: "PLAI", maxRent: "15 €", condition: "" },
         { type: "Garage", product: "PLUS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
         { type: "Garage", product: "PLS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
-        { type: "Carport", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Carport", product: "PLUS/PLS", maxRent: "25 €", condition: "" },
-        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Stationnement", product: "PLUS/PLS", maxRent: "18 €", condition: "" }
+        { type: "Carport", product: "PLAI", maxRent: "10€/12€", condition: "Local/Fermé" },
+        { type: "Carport", product: "PLUS", maxRent: "20€/25€", condition: "Local/Fermé" },
+        { type: "Carport", product: "PLS", maxRent: "20€/25€", condition: "Local/Fermé" },
+        { type: "Stationnement", product: "PLAI", maxRent: "8 €", condition: "" },
+        { type: "Stationnement", product: "PLUS", maxRent: "16 €", condition: "" },
+        { type: "Stationnement", product: "PLS", maxRent: "16 €", condition: "" }
     ],
-    hasMargins: true, hasRents: true,
-    footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
+    hasMargins: false, hasRents: true, footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
 };
 
 // 4. CAPH
@@ -733,7 +738,7 @@ const App: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [suggestions, setSuggestions] = useState<CommuneData[]>([]);
   // @ts-ignore
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
   const [allCommunes, setAllCommunes] = useState<CommuneData[]>([]);
