@@ -187,33 +187,6 @@ const FULL_DB_59: CommuneData[] = [
 
 // --- DONNÉES RÉFÉRENTIELS (RÈGLES) ---
 
-const seedDatabase = async () => {
-    // Si la DB échoue, on ne plante pas l'app, on retourne false
-    try {
-        const commSnap = await getDocs(getCommunesCollection());
-        if (commSnap.empty) {
-            const batch = writeBatch(db);
-            FULL_DB_59.forEach((c) => { // @ts-ignore
-                batch.set(doc(db, ...PUBLIC_DATA_PATH, c.insee), { ...c, lastUpdated: new Date().toLocaleDateString('fr-FR') });
-            });
-            await batch.commit();
-        }
-        // Seed Refs if empty
-        const refSnap = await getDocs(getRefsCollection());
-        if (refSnap.empty) {
-            const batch = writeBatch(db);
-            ALL_REFS_DEF.forEach((r) => { // @ts-ignore
-                batch.set(doc(db, ...REFS_DATA_PATH, r.id), r);
-            });
-            await batch.commit();
-        }
-        return true;
-    } catch (e) {
-        console.error("Seed Failed", e);
-        throw e;
-    }
-};
-
 // 1. DDTM (Défaut)
 const DDTM_DEF = {
     id: 'ddtm', name: 'DDTM 59 (Droit Commun)', lastUpdated: '01/01/2024',
@@ -358,8 +331,7 @@ const CUD_DEF = {
         { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
         { type: "Stationnement", product: "PLUS", maxRent: "18 €", condition: "" }
     ],
-    hasMargins: true, hasRents: true,
-    footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
+    hasMargins: true, hasRents: true, footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
 };
 
 // 4. CAPH
@@ -517,9 +489,37 @@ const CAMVS_DEF = { ...CUD_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMV
         { type: "Zone 3 + Certif", product: "PLUS", margin: "8%" }
     ],
     accessoryRents: CAPH_DEF.accessoryRents,
+    hasMargins: true, hasRents: true
 };
 
 const ALL_REFS_DEF = [DDTM_DEF, MEL_DEF, CUD_DEF, CAPH_DEF, CAVM_DEF, CAD_DEF, CAMVS_DEF];
+
+const seedDatabase = async () => {
+    // Si la DB échoue, on ne plante pas l'app, on retourne false
+    try {
+        const commSnap = await getDocs(getCommunesCollection());
+        if (commSnap.empty) {
+            const batch = writeBatch(db);
+            FULL_DB_59.forEach((c) => { // @ts-ignore
+                batch.set(doc(db, ...PUBLIC_DATA_PATH, c.insee), { ...c, lastUpdated: new Date().toLocaleDateString('fr-FR') });
+            });
+            await batch.commit();
+        }
+        // Seed Refs if empty
+        const refSnap = await getDocs(getRefsCollection());
+        if (refSnap.empty) {
+            const batch = writeBatch(db);
+            ALL_REFS_DEF.forEach((r) => { // @ts-ignore
+                batch.set(doc(db, ...REFS_DATA_PATH, r.id), r);
+            });
+            await batch.commit();
+        }
+        return true;
+    } catch (e) {
+        console.error("Seed Failed", e);
+        throw e;
+    }
+};
 
 const AdminCommuneEditor = ({ onClose, initialData }: { onClose: () => void; initialData: CommuneData[] }) => {
   const [communes, setCommunes] = useState<CommuneData[]>(initialData);
