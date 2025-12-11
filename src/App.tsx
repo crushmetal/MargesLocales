@@ -3,7 +3,7 @@ import {
   Search, MapPin, Building2, Users, AlertTriangle, 
   CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
   X, Calculator, ChevronUp, CheckSquare, Square, 
-  Landmark, BadgeCheck, MapPinned, Target, Download, FileText, Edit3
+  Landmark, BadgeCheck, MapPinned, Target, Download, FileText, Edit3, ShieldAlert
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -30,7 +30,6 @@ const firebaseConfig = {
   appId: "1:1077584427724:web:39e529e17d4021110e6069"
 };
 
-// Initialisation
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
@@ -39,7 +38,6 @@ const APP_ID = 'nord-habitat-v1';
 const PUBLIC_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'communes'];
 const REFS_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'references'];
 
-// --- TYPES ---
 const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
 
 export interface HousingStats { socialHousingRate: number; targetRate: number; deficit: boolean; exempt?: boolean; }
@@ -63,7 +61,6 @@ const formatCurrency = (v: number) => new Intl.NumberFormat('fr-FR', { style: 'c
 
 const getMarginValue = (marginStr: string, zoneRental: string) => {
     if (!marginStr || typeof marginStr !== 'string' || !marginStr.includes("Z")) return marginStr || "";
-    // Safe check if zoneRental is defined
     const z = zoneRental ? zoneRental.toString() : "";
     if (z === "2" && marginStr.includes("Z2:")) return marginStr.match(/Z2:([^|]+)/)?.[1] || marginStr;
     if (z === "3" && marginStr.includes("Z3:")) return marginStr.match(/Z3:([^|]+)/)?.[1] || marginStr;
@@ -88,7 +85,14 @@ const getCommunesCollection = () => collection(db, ...PUBLIC_DATA_PATH);
 const getRefsCollection = () => collection(db, ...REFS_DATA_PATH); 
 
 const fetchAllCommunes = async () => {
-  try { const snap = await getDocs(getCommunesCollection()); return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommuneData)); } catch { return []; }
+  // Modification pour remonter l'erreur au lieu de la cacher
+  try { 
+      const snap = await getDocs(getCommunesCollection()); 
+      return snap.docs.map(doc => ({ id: doc.id, ...doc.data() } as CommuneData)); 
+  } catch (error) { 
+      console.error("Erreur lecture DB:", error);
+      throw error; 
+  }
 };
 
 const fetchReferenceData = async (epciId: string): Promise<ReferenceData | null> => {
@@ -115,7 +119,7 @@ const saveCommuneToDb = async (commune: CommuneData) => {
     const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
     
     const dataToSave: any = { ...commune };
-    if ('isApiSource' in dataToSave) delete dataToSave.isApiSource;
+    delete dataToSave.isApiSource;
     
     await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
     return true;
@@ -151,7 +155,7 @@ const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
 
 /**
  * ==========================================
- * 3. DONNÉES STATIQUES & SEED (CORRIGÉES)
+ * 3. DONNÉES STATIQUES & SEED
  * ==========================================
  */
 const FULL_DB_59: CommuneData[] = [
@@ -185,24 +189,30 @@ const FULL_DB_59: CommuneData[] = [
 // --- DONNÉES RÉFÉRENTIELS (RÈGLES) ---
 
 const seedDatabase = async () => {
-    const commSnap = await getDocs(getCommunesCollection());
-    if (commSnap.empty) {
-        const batch = writeBatch(db);
-        FULL_DB_59.forEach((c) => { // @ts-ignore
-            batch.set(doc(db, ...PUBLIC_DATA_PATH, c.insee), { ...c, lastUpdated: new Date().toLocaleDateString('fr-FR') });
-        });
-        await batch.commit();
+    // Si la DB échoue, on ne plante pas l'app, on retourne false
+    try {
+        const commSnap = await getDocs(getCommunesCollection());
+        if (commSnap.empty) {
+            const batch = writeBatch(db);
+            FULL_DB_59.forEach((c) => { // @ts-ignore
+                batch.set(doc(db, ...PUBLIC_DATA_PATH, c.insee), { ...c, lastUpdated: new Date().toLocaleDateString('fr-FR') });
+            });
+            await batch.commit();
+        }
+        // Seed Refs if empty
+        const refSnap = await getDocs(getRefsCollection());
+        if (refSnap.empty) {
+            const batch = writeBatch(db);
+            ALL_REFS_DEF.forEach((r) => { // @ts-ignore
+                batch.set(doc(db, ...REFS_DATA_PATH, r.id), r);
+            });
+            await batch.commit();
+        }
+        return true;
+    } catch (e) {
+        console.error("Seed Failed", e);
+        throw e;
     }
-    // Seed Refs if empty
-    const refSnap = await getDocs(getRefsCollection());
-    if (refSnap.empty) {
-        const batch = writeBatch(db);
-        ALL_REFS_DEF.forEach((r) => { // @ts-ignore
-            batch.set(doc(db, ...REFS_DATA_PATH, r.id), r);
-        });
-        await batch.commit();
-    }
-    return true;
 };
 
 // 1. DDTM (Défaut)
@@ -351,7 +361,6 @@ const CUD_DEF = {
         { type: "Stationnement", product: "PLUS", maxRent: "16 €", condition: "" },
         { type: "Stationnement", product: "PLS", maxRent: "16 €", condition: "" }
     ],
-    hasMargins: true, hasRents: true, footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
 };
 
 // 4. CAPH
@@ -691,19 +700,35 @@ const App: React.FC = () => {
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
-  const [allCommunes, setAllCommunes] = useState<CommuneData[]>(FULL_DB_59); // Initialisation directe avec les données riches pour éviter la page blanche
+  const [allCommunes, setAllCommunes] = useState<CommuneData[]>(FULL_DB_59); 
+  const [dbError, setDbError] = useState<string | null>(null);
 
   useEffect(() => {
-    signInAnonymously(auth).catch(console.error);
+    signInAnonymously(auth)
+      .then(() => setDbError(null))
+      .catch((error) => {
+        console.error("Auth Failed:", error);
+        setDbError(`Erreur d'authentification : ${error.code} - ${error.message}`);
+      });
     return onAuthStateChanged(auth, setUser);
   }, []);
 
   useEffect(() => {
-      // Tentative de mise à jour depuis la DB, mais on ne vide pas la liste si ça échoue
       if(user) {
-          seedDatabase().then(() => fetchAllCommunes().then((res) => {
-              if (res.length > 0) setAllCommunes(res);
-          })).catch(err => console.log("Mode hors ligne activé:", err));
+          seedDatabase()
+            .then(() => fetchAllCommunes())
+            .then((res) => {
+                if (res.length > 0) {
+                    setAllCommunes(res);
+                    setDbError(null);
+                }
+            })
+            .catch(err => {
+                console.error("DB Error:", err);
+                let msg = err.message || "Erreur inconnue";
+                if(err.code === 'permission-denied') msg = "Permissions insuffisantes (Vérifiez les règles Firestore)";
+                setDbError(msg);
+            });
       }
   }, [user]);
 
@@ -758,6 +783,17 @@ const App: React.FC = () => {
       </header>
 
       <main className="flex-grow p-4">
+        {dbError && (
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4 mx-auto max-w-4xl rounded shadow-sm flex items-start gap-3">
+                <ShieldAlert className="text-red-500 w-6 h-6 flex-shrink-0" />
+                <div>
+                    <h3 className="font-bold text-red-800">Erreur de connexion à la base de données</h3>
+                    <p className="text-sm text-red-700 mt-1">{dbError}</p>
+                    <p className="text-xs text-red-500 mt-2 italic">L'application fonctionne en mode hors ligne avec les données locales.</p>
+                </div>
+            </div>
+        )}
+
         {viewState === ViewState.HOME && (
           <div className="flex flex-col items-center justify-center h-full animate-fade-in text-center mt-12">
              <div className="bg-white rounded-3xl shadow-xl p-10 border border-slate-100 max-w-2xl">
