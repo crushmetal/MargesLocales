@@ -35,8 +35,9 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 
 const APP_ID = 'nord-habitat-v1'; 
-const PUBLIC_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'communes'];
-const REFS_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'references'];
+// Utilisation directe des chaines pour éviter les erreurs de spread
+const COMMUNES_COLLECTION_PATH = ['artifacts', APP_ID, 'public', 'data', 'communes'];
+const REFS_COLLECTION_PATH = ['artifacts', APP_ID, 'public', 'data', 'references'];
 
 const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
 
@@ -48,7 +49,7 @@ export interface ReferenceData { id: string; name: string; lastUpdated: string; 
 
 /**
  * ==========================================
- * 2. UTILITAIRES & SERVICES
+ * 2. UTILITAIRES
  * ==========================================
  */
 
@@ -78,11 +79,16 @@ const getRefIdFromEpci = (epciName: string) => {
     return 'ddtm';
 };
 
-// --- SERVICES DB ---
+/**
+ * ==========================================
+ * 3. SERVICES DB & API
+ * ==========================================
+ */
+
 // @ts-ignore
-const getCommunesCollection = () => collection(db, ...PUBLIC_DATA_PATH); 
+const getCommunesCollection = () => collection(db, 'artifacts', APP_ID, 'public', 'data', 'communes');
 // @ts-ignore
-const getRefsCollection = () => collection(db, ...REFS_DATA_PATH); 
+const getRefsCollection = () => collection(db, 'artifacts', APP_ID, 'public', 'data', 'references');
 
 const fetchAllCommunes = async () => {
   try { 
@@ -97,7 +103,7 @@ const fetchAllCommunes = async () => {
 const fetchReferenceData = async (epciId: string): Promise<ReferenceData | null> => {
     try {
         // @ts-ignore
-        const refDoc = await getDoc(doc(db, ...REFS_DATA_PATH, epciId));
+        const refDoc = await getDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'references', epciId));
         if (refDoc.exists()) return refDoc.data() as ReferenceData;
         return null;
     } catch { return null; }
@@ -106,7 +112,7 @@ const fetchReferenceData = async (epciId: string): Promise<ReferenceData | null>
 const saveReferenceData = async (data: ReferenceData) => {
     try {
         // @ts-ignore
-        await setDoc(doc(db, ...REFS_DATA_PATH, data.id), data);
+        await setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'references', data.id), data);
         return true;
     } catch (e) { console.error(e); return false; }
 };
@@ -115,19 +121,19 @@ const saveCommuneToDb = async (commune: CommuneData) => {
   try {
     const docId = commune.insee;
     // @ts-ignore
-    const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
-    
+    const docRef = doc(db, 'artifacts', APP_ID, 'public', 'data', 'communes', docId);
     const dataToSave: any = { ...commune };
-    if ('isApiSource' in dataToSave) delete dataToSave.isApiSource;
-    
+    if (dataToSave.isApiSource) delete dataToSave.isApiSource;
     await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
     return true;
   } catch (err) { return false; }
 };
 
 const deleteCommuneFromDb = async (insee: string) => {
-    try { // @ts-ignore
-        await deleteDoc(doc(db, ...PUBLIC_DATA_PATH, insee)); return true; 
+    try { 
+        // @ts-ignore
+        await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'communes', insee)); 
+        return true; 
     } catch { return false; }
 }
 
@@ -145,7 +151,7 @@ const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
             return {
                 insee: item.code, name: item.nom, population: item.population, epci: epciName, directionTerritoriale: autoDT,
                 stats: { socialHousingRate: 0, targetRate: 20, deficit: false, exempt: false },
-                zoning: { accession: "C", rental: "3" }, // Défaut
+                zoning: { accession: "C", rental: "3" }, 
                 isApiSource: true
             };
         });
@@ -154,7 +160,7 @@ const searchGeoApi = async (term: string): Promise<CommuneData[]> => {
 
 /**
  * ==========================================
- * 3. DONNÉES STATIQUES & SEED
+ * 4. DONNÉES STATIQUES (SEED)
  * ==========================================
  */
 const FULL_DB_59: CommuneData[] = [
@@ -184,8 +190,6 @@ const FULL_DB_59: CommuneData[] = [
   { insee: "59392", name: "Maubeuge", epci: "CA Maubeuge Val de Sambre", population: 29066, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 40.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
   { insee: "59122", name: "Cambrai", epci: "CA de Cambrai", population: 31425, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 22.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "C", rental: "3" } }
 ];
-
-// --- DONNÉES RÉFÉRENTIELS (RÈGLES) ---
 
 // 1. DDTM (Défaut)
 const DDTM_DEF = {
@@ -327,9 +331,11 @@ const CUD_DEF = {
         { type: "Garage", product: "PLUS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
         { type: "Garage", product: "PLS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
         { type: "Carport", product: "PLAI", maxRent: "10€/12€", condition: "Local/Fermé" },
-        { type: "Carport", product: "PLUS", maxRent: "25 €", condition: "" },
-        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Stationnement", product: "PLUS", maxRent: "18 €", condition: "" }
+        { type: "Carport", product: "PLUS", maxRent: "20€/25€", condition: "Local/Fermé" },
+        { type: "Carport", product: "PLS", maxRent: "20€/25€", condition: "Local/Fermé" },
+        { type: "Stationnement", product: "PLAI", maxRent: "8 €", condition: "" },
+        { type: "Stationnement", product: "PLUS", maxRent: "16 €", condition: "" },
+        { type: "Stationnement", product: "PLS", maxRent: "16 €", condition: "" }
     ],
     hasMargins: true, hasRents: true, footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
 };
@@ -489,7 +495,6 @@ const CAMVS_DEF = { ...CUD_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMV
         { type: "Zone 3 + Certif", product: "PLUS", margin: "8%" }
     ],
     accessoryRents: CAPH_DEF.accessoryRents,
-    hasMargins: true, hasRents: true
 };
 
 const ALL_REFS_DEF = [DDTM_DEF, MEL_DEF, CUD_DEF, CAPH_DEF, CAVM_DEF, CAD_DEF, CAMVS_DEF];
