@@ -58,14 +58,14 @@ const MANUAL_OVERRIDES = [
   { insee: "59606", name: "Valenciennes", population: 42990, epci: "CA Valenciennes Métropole", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false } },
   { insee: "59526", name: "Saint-Amand-les-Eaux", population: 16000, epci: "CA de la Porte du Hainaut", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.5, targetRate: 20, deficit: false } },
   
-  // METROPOLE LILLOISE (MEL)
-  { insee: "59017", name: "Armentières", population: 24800, epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 23.0, targetRate: 25, deficit: true } }, 
-  { insee: "59350", name: "Lille", population: 236000, epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 24.5, targetRate: 25, deficit: true } },
-  { insee: "59512", name: "Roubaix", population: 98000, epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 45.2, targetRate: 25, deficit: false } },
-  { insee: "59599", name: "Tourcoing", population: 99000, epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 32.1, targetRate: 25, deficit: false } },
-  { insee: "59648", name: "Villeneuve-d'Ascq", population: 62000, epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 42.0, targetRate: 25, deficit: false } },
-  { insee: "59368", name: "Marcq-en-Barœul", population: 38500, epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 19.4, targetRate: 25, deficit: true } },
-  { insee: "59457", name: "Pérenchies", population: 8500, epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 21.0, targetRate: 25, deficit: true } }, 
+  // METROPOLE LILLOISE (MEL) - Correction Direction Territoriale
+  { insee: "59017", name: "Armentières", population: 24800, epci: "Métropole Européenne de Lille", directionTerritoriale: "Service Territorial Métropole", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 23.0, targetRate: 25, deficit: true } }, 
+  { insee: "59350", name: "Lille", population: 236000, epci: "Métropole Européenne de Lille", directionTerritoriale: "Service Territorial Métropole", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 24.5, targetRate: 25, deficit: true } },
+  { insee: "59512", name: "Roubaix", population: 98000, epci: "Métropole Européenne de Lille", directionTerritoriale: "Service Territorial Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 45.2, targetRate: 25, deficit: false } },
+  { insee: "59599", name: "Tourcoing", population: 99000, epci: "Métropole Européenne de Lille", directionTerritoriale: "Service Territorial Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 32.1, targetRate: 25, deficit: false } },
+  { insee: "59648", name: "Villeneuve-d'Ascq", population: 62000, epci: "Métropole Européenne de Lille", directionTerritoriale: "Service Territorial Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 42.0, targetRate: 25, deficit: false } },
+  { insee: "59368", name: "Marcq-en-Barœul", population: 38500, epci: "Métropole Européenne de Lille", directionTerritoriale: "Service Territorial Métropole", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 19.4, targetRate: 25, deficit: true } },
+  { insee: "59457", name: "Pérenchies", population: 8500, epci: "Métropole Européenne de Lille", directionTerritoriale: "Service Territorial Métropole", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 21.0, targetRate: 25, deficit: true } }, 
 
   // DUNKERQUOIS (CUD)
   { insee: "59183", name: "Dunkerque", population: 86000, epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 35.0, targetRate: 25, deficit: false } },
@@ -168,8 +168,8 @@ const MEL_DEF = {
     ],
     accessoryRents: [
         { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Garage", product: "PLUS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
-        { type: "Garage", product: "PLS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
+        { type: "Garage", product: "PLUS", maxRent: "32 €", condition: "" },
+        { type: "Garage", product: "PLS", maxRent: "32 €", condition: "" },
         { type: "Carport", product: "PLAI", maxRent: "0 €", condition: "" },
         { type: "Carport", product: "PLUS", maxRent: "16 €", condition: "" },
         { type: "Carport", product: "PLS", maxRent: "16 €", condition: "" },
@@ -489,9 +489,9 @@ const searchGeoApi = async (term) => {
             let autoDT = "À définir";
             const n = epciName.toLowerCase();
             // Simplified DT Logic for display
-            if (n.includes("lille")) autoDT = "Territoire Métropole";
-            else if (n.includes("dunkerque") || n.includes("flandre")) autoDT = "Territoire Flandre";
-            else if (n.includes("valenciennes") || n.includes("hainaut") || n.includes("douaisis") || n.includes("cambrai") || n.includes("sambre")) autoDT = "Territoire Hainaut";
+            if (n.includes("lille")) autoDT = "Service Territorial Métropole";
+            else if (n.includes("dunkerque") || n.includes("flandre")) autoDT = "Service Territorial Flandre Grand Littoral";
+            else if (n.includes("valenciennes") || n.includes("hainaut") || n.includes("douaisis") || n.includes("cambrai") || n.includes("sambre")) autoDT = "Service Territorial Hainaut - Douaisis - Cambrésis";
             else autoDT = "DDTM - Service Territorial";
             
             return {
