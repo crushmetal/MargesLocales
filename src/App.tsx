@@ -51,38 +51,38 @@ const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
  * ==========================================
  */
 
-// Corrections manuelles COMPLÈTES (Avec EPCI pour garantir le chargement des aides)
+// Corrections manuelles COMPLÈTES (Avec Population ajoutée)
 const MANUAL_OVERRIDES = [
   // VALENCIENNOIS (CAVM / CAPH)
-  { insee: "59221", name: "Famars", epci: "CA Valenciennes Métropole", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 0, targetRate: 20, deficit: false } },
-  { insee: "59606", name: "Valenciennes", epci: "CA Valenciennes Métropole", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false } },
-  { insee: "59526", name: "Saint-Amand-les-Eaux", epci: "CA de la Porte du Hainaut", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.5, targetRate: 20, deficit: false } },
+  { insee: "59221", name: "Famars", population: 2500, epci: "CA Valenciennes Métropole", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 0, targetRate: 20, deficit: false } },
+  { insee: "59606", name: "Valenciennes", population: 42990, epci: "CA Valenciennes Métropole", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false } },
+  { insee: "59526", name: "Saint-Amand-les-Eaux", population: 16000, epci: "CA de la Porte du Hainaut", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.5, targetRate: 20, deficit: false } },
   
   // METROPOLE LILLOISE (MEL)
-  { insee: "59017", name: "Armentières", epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 23.0, targetRate: 25, deficit: true } }, 
-  { insee: "59350", name: "Lille", epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 24.5, targetRate: 25, deficit: true } },
-  { insee: "59512", name: "Roubaix", epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 45.2, targetRate: 25, deficit: false } },
-  { insee: "59599", name: "Tourcoing", epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 32.1, targetRate: 25, deficit: false } },
-  { insee: "59648", name: "Villeneuve-d'Ascq", epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 42.0, targetRate: 25, deficit: false } },
-  { insee: "59368", name: "Marcq-en-Barœul", epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 19.4, targetRate: 25, deficit: true } },
-  { insee: "59457", name: "Pérenchies", epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 21.0, targetRate: 25, deficit: true } }, 
+  { insee: "59017", name: "Armentières", population: 24800, epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 23.0, targetRate: 25, deficit: true } }, 
+  { insee: "59350", name: "Lille", population: 236000, epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 24.5, targetRate: 25, deficit: true } },
+  { insee: "59512", name: "Roubaix", population: 98000, epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 45.2, targetRate: 25, deficit: false } },
+  { insee: "59599", name: "Tourcoing", population: 99000, epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 32.1, targetRate: 25, deficit: false } },
+  { insee: "59648", name: "Villeneuve-d'Ascq", population: 62000, epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 42.0, targetRate: 25, deficit: false } },
+  { insee: "59368", name: "Marcq-en-Barœul", population: 38500, epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 19.4, targetRate: 25, deficit: true } },
+  { insee: "59457", name: "Pérenchies", population: 8500, epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 21.0, targetRate: 25, deficit: true } }, 
 
   // DUNKERQUOIS (CUD)
-  { insee: "59183", name: "Dunkerque", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 35.0, targetRate: 25, deficit: false } },
-  { insee: "59271", name: "Grande-Synthe", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 60.0, targetRate: 25, deficit: false } },
-  { insee: "59155", name: "Coudekerque-Branche", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 30.0, targetRate: 25, deficit: false } },
-  { insee: "59273", name: "Gravelines", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false } },
-  { insee: "59123", name: "Bray-Dunes", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 12.5, targetRate: 25, deficit: true } },
-  { insee: "59668", name: "Zuydcoote", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 8.0, targetRate: 25, deficit: true } },
-  { insee: "59360", name: "Loon-Plage", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false } },
-  { insee: "59588", name: "Téteghem-Coudekerque-Village", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 24.89, targetRate: 25, deficit: true } },
-  { insee: "59341", name: "Leffrinckoucke", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false } },
-  { insee: "59098", name: "Bourbourg", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "C", rental: "3" }, stats: { socialHousingRate: 25.0, targetRate: 20, deficit: false } },
+  { insee: "59183", name: "Dunkerque", population: 86000, epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 35.0, targetRate: 25, deficit: false } },
+  { insee: "59271", name: "Grande-Synthe", population: 20000, epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 60.0, targetRate: 25, deficit: false } },
+  { insee: "59155", name: "Coudekerque-Branche", population: 20000, epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 30.0, targetRate: 25, deficit: false } },
+  { insee: "59273", name: "Gravelines", population: 11000, epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false } },
+  { insee: "59123", name: "Bray-Dunes", population: 4500, epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 12.5, targetRate: 25, deficit: true } },
+  { insee: "59668", name: "Zuydcoote", population: 1600, epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 8.0, targetRate: 25, deficit: true } },
+  { insee: "59360", name: "Loon-Plage", population: 6000, epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false } },
+  { insee: "59588", name: "Téteghem-Coudekerque-Village", population: 8300, epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 24.89, targetRate: 25, deficit: true } },
+  { insee: "59341", name: "Leffrinckoucke", population: 4000, epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false } },
+  { insee: "59098", name: "Bourbourg", population: 7000, epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "C", rental: "3" }, stats: { socialHousingRate: 25.0, targetRate: 20, deficit: false } },
   
   // AUTRES (DOUAISIS / SAMBRE / CAMBRAI)
-  { insee: "59173", name: "Douai", epci: "Douaisis Agglo", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 32.0, targetRate: 20, deficit: false } },
-  { insee: "59392", name: "Maubeuge", epci: "CA Maubeuge Val de Sambre", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 40.0, targetRate: 20, deficit: false } },
-  { insee: "59122", name: "Cambrai", epci: "CA de Cambrai", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "C", rental: "3" }, stats: { socialHousingRate: 22.0, targetRate: 20, deficit: false } }
+  { insee: "59173", name: "Douai", population: 39000, epci: "Douaisis Agglo", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 32.0, targetRate: 20, deficit: false } },
+  { insee: "59392", name: "Maubeuge", population: 29000, epci: "CA Maubeuge Val de Sambre", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 40.0, targetRate: 20, deficit: false } },
+  { insee: "59122", name: "Cambrai", population: 31000, epci: "CA de Cambrai", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "C", rental: "3" }, stats: { socialHousingRate: 22.0, targetRate: 20, deficit: false } }
 ];
 
 // Référentiels Financiers (Liés à l'EPCI)
@@ -101,37 +101,43 @@ const DDTM_DEF = {
 const MEL_DEF = {
     ...DDTM_DEF, id: 'mel', name: 'Métropole Européenne de Lille', lastUpdated: 'Juillet 2025',
     subsidiesState: [
-        { type: "PLAI DC / AA", amount: "9 130 €", condition: "Cumulable Bonus" },
-        { type: "PLAI Adapté (Ord)", amount: "16 480 €", condition: "1-3 lgts" },
-        { type: "PLAI Adapté (Str)", amount: "8 980 €", condition: "Structure" },
-        { type: "PLAI - AA", amount: "16 000 €", condition: "Super Bonus" },
-        { type: "PLUS - AA", amount: "20 000 €", condition: "Mega Bonus*" },
-        { type: "Résidences Sociales", amount: "7 500 €", condition: "Suppl. Adapté" },
-        { type: "PLAI Octave", amount: "9 130 €", condition: "Non cumul Etat" },
-        { type: "PLAI Gens Voyage", amount: "9 130 €", condition: "Non cumul Etat" }
+        { type: "PLAI DC / AA", amount: "9 130 €", condition: "Socle de base. Cumulable avec les Bonus." },
+        { type: "PLAI Adapté (Ord)", amount: "16 480 €", condition: "Opérations de 1 à 3 logements." },
+        { type: "PLAI Adapté (Str)", amount: "8 980 €", condition: "Opérations en structure collective." },
+        { type: "PLAI - AA", amount: "16 000 €", condition: "Super Bonus pour Acquisition-Amélioration." },
+        { type: "PLUS - AA", amount: "20 000 €", condition: "Mega Bonus (Conditions spécifiques)." },
+        { type: "Résidences Sociales", amount: "7 500 €", condition: "Supplément au socle adapté." },
+        { type: "PLAI Octave", amount: "9 130 €", condition: "Non cumulable avec aides État classiques." },
+        { type: "PLAI Gens Voyage", amount: "9 130 €", condition: "Non cumulable avec aides État classiques." },
+        { type: "Fonds Friches", amount: "Sur dossier", condition: "Appel à projet annuel (DDTM)." }
     ],
     subsidiesEPCI: [
-        { type: "PLAI", amount: "15 000 €", condition: "/lgt" },
-        { type: "PLAI (<10 lgts)", amount: "26 000 €", condition: "Opé < 10 lgts" },
-        { type: "PLAI AA", amount: "26 000 €", condition: "/lgt" },
-        { type: "PLAI Struct <50", amount: "15 000 €", condition: "/lgt" },
-        { type: "PLAI Struct >50", amount: "12 000 €", condition: "/lgt" },
-        { type: "PLAI Octave", amount: "7 500 €", condition: "Cumul Etat" },
-        { type: "PLAI Octave CARSAT", amount: "+ 3 500 €", condition: "Bonus" },
-        { type: "PLAI Gens Voyage", amount: "15K-30K €", condition: "/lgt" },
-        { type: "PLAI Adapté", amount: "16 480 €", condition: "Cumulable" },
-        { type: "PLAI Adapté Octave", amount: "8 980 €", condition: "Uniq. Octave" }
+        { type: "PLAI", amount: "15 000 €", condition: "Par logement (Neuf ou AA)." },
+        { type: "PLAI (<10 lgts)", amount: "26 000 €", condition: "Opérations de moins de 10 logements." },
+        { type: "PLAI AA", amount: "26 000 €", condition: "Acquisition-Amélioration (Plafond)." },
+        { type: "PLAI Struct <50", amount: "15 000 €", condition: "Structure collective < 50m² SU." },
+        { type: "PLAI Struct >50", amount: "12 000 €", condition: "Structure collective > 50m² SU." },
+        { type: "PLAI Octave", amount: "7 500 €", condition: "Cumulable avec aides État." },
+        { type: "PLAI Octave CARSAT", amount: "+ 3 500 €", condition: "Bonus si financement CARSAT obtenu." },
+        { type: "PLAI Gens Voyage", amount: "15K-30K €", condition: "Variable selon typologie (Terrain/Bâti)." },
+        { type: "PLAI Adapté", amount: "16 480 €", condition: "Cumulable avec socle État." },
+        { type: "PLAI Adapté Octave", amount: "8 980 €", condition: "Uniquement pour label Octave." },
+        { type: "Surcharge Foncière", amount: "Variable", condition: "Compensation déficit opération (Bilan)." },
+        { type: "Désamiantage", amount: "50% Coût HT", condition: "Plafond 10 000 € par logement." },
+        { type: "Démolition", amount: "50% Coût HT", condition: "Plafond 15 000 € par logement." }
     ],
     subsidiesNPNRU: [
-        { type: "Subv. PLAI", amount: "6 300+1 500", condition: "Doublé si AA" },
-        { type: "Prêt PLAI", amount: "7 900+1 900", condition: "Doublé si AA" },
-        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Doublé si AA" }
+        { type: "Subv. PLAI", amount: "6 300+1 500 €", condition: "Doublé si Acquisition-Amélioration." },
+        { type: "Prêt PLAI", amount: "7 900+1 900 €", condition: "Doublé si Acquisition-Amélioration." },
+        { type: "Prêt PLUS", amount: "6 700+5 600 €", condition: "Doublé si Acquisition-Amélioration." },
+        { type: "Démolition", amount: "100%", condition: "Prise en charge intégrale si conventionné." }
     ],
     subsidiesCD: [
-        { type: "CD PLAI", amount: "27 000 €", condition: "Forfait" },
-        { type: "CD PLAI Adapté", amount: "33 250 €", condition: "Ttes zones" },
-        { type: "CD PLUS", amount: "18 000 €", condition: "Forfait" },
-        { type: "CD PLS", amount: "4 000 €", condition: "Forfait" }
+        { type: "CD PLAI", amount: "27 000 €", condition: "Forfaitaire (Toutes zones)." },
+        { type: "CD PLAI Adapté", amount: "33 250 €", condition: "Forfaitaire (Toutes zones)." },
+        { type: "CD PLUS", amount: "18 000 €", condition: "Forfaitaire (Toutes zones)." },
+        { type: "CD PLS", amount: "4 000 €", condition: "Forfaitaire (Toutes zones)." },
+        { type: "Autonomie", amount: "+ 2 000 €", condition: "Si label Habitat Inclusif / Senior." }
     ],
     marginsRE2020: [
         { type: "RE2020 Base", product: "PLUS", margin: "0%" },
@@ -168,39 +174,39 @@ const MEL_DEF = {
 const CUD_DEF = {
     ...DDTM_DEF, id: 'cud', name: 'Communauté Urbaine de Dunkerque', lastUpdated: 'Juillet 2025',
     subsidiesState: [
-        { type: "PLAI - DC", amount: "6 452 €", condition: "/lgt" },
-        { type: "PLAI Adapté (Ord)", amount: "16 480 €", condition: "1-3 lgts" },
-        { type: "PLAI Adapté (Str)", amount: "8 980 €", condition: "> 3 lgts" },
-        { type: "PLAI - AA (Bonus)", amount: "16 000 €", condition: "Struct." },
-        { type: "PLUS - AA (Mega)", amount: "20 000 €", condition: "/lgt*" },
-        { type: "Pensions/RS", amount: "7 500 €", condition: "Suppl." }
+        { type: "PLAI - DC", amount: "6 452 €", condition: "Montant par logement (Droit Commun)." },
+        { type: "PLAI Adapté (Ord)", amount: "16 480 €", condition: "Opérations 1 à 3 logements." },
+        { type: "PLAI Adapté (Str)", amount: "8 980 €", condition: "Opérations de plus de 3 logements." },
+        { type: "PLAI - AA (Bonus)", amount: "16 000 €", condition: "Bonus structurel AA." },
+        { type: "PLUS - AA (Mega)", amount: "20 000 €", condition: "Mega Bonus (voir conditions)." },
+        { type: "Pensions/RS", amount: "7 500 €", condition: "Supplément spécifique." }
     ],
     subsidiesEPCI: [
-        { type: "PLAI (Neuf)", amount: "15 000 €", condition: "/lgt" },
-        { type: "PLAI Adapté", amount: "18 000 €", condition: "/lgt" },
-        { type: "PLUS (Neuf)", amount: "2 000 €", condition: "/lgt" },
-        { type: "PLAI RO", amount: "15 000 €", condition: "Réhab" },
-        { type: "PLUS RO", amount: "3 000 €", condition: "Réhab" },
-        { type: "PLAI AA Base", amount: "15 000 €", condition: "< 145kWh" },
-        { type: "PLAI AA BBC", amount: "+ 1 000 €", condition: "Rénov 24" },
-        { type: "PLAI AA Indiv", amount: "+ 2 000 €", condition: "Maison" },
-        { type: "PLAI AA Adapté", amount: "+ 3 000 €", condition: "Si DC" },
-        { type: "PLUS AA Base", amount: "6 000 €", condition: "< 145kWh" },
-        { type: "PLUS AA BBC", amount: "+ 1 000 €", condition: "Rénov 24" },
-        { type: "PLUS AA Indiv", amount: "+ 2 000 €", condition: "Maison" },
-        { type: "Ascenseur <R+3", amount: "20 000 €", condition: "Aide CD" },
-        { type: "Restructuration", amount: "2 500 €", condition: "Grands lgts" }
+        { type: "PLAI (Neuf)", amount: "15 000 €", condition: "Par logement neuf." },
+        { type: "PLAI Adapté", amount: "18 000 €", condition: "Par logement adapté." },
+        { type: "PLUS (Neuf)", amount: "2 000 €", condition: "Par logement neuf." },
+        { type: "PLAI RO", amount: "15 000 €", condition: "Réhabilitation Obligatoire." },
+        { type: "PLUS RO", amount: "3 000 €", condition: "Réhabilitation Obligatoire." },
+        { type: "PLAI AA Base", amount: "15 000 €", condition: "Conso < 145kWh/m²/an." },
+        { type: "PLAI AA BBC", amount: "+ 1 000 €", condition: "Label BBC Rénovation 2024." },
+        { type: "PLAI AA Indiv", amount: "+ 2 000 €", condition: "Maison individuelle." },
+        { type: "PLAI AA Adapté", amount: "+ 3 000 €", condition: "Si financé en Droit Commun." },
+        { type: "PLUS AA Base", amount: "6 000 €", condition: "Conso < 145kWh/m²/an." },
+        { type: "PLUS AA BBC", amount: "+ 1 000 €", condition: "Label BBC Rénovation 2024." },
+        { type: "PLUS AA Indiv", amount: "+ 2 000 €", condition: "Maison individuelle." },
+        { type: "Ascenseur <R+3", amount: "20 000 €", condition: "Aide conjointe avec CD." },
+        { type: "Restructuration", amount: "2 500 €", condition: "Grands logements (> T4)." }
     ],
     subsidiesNPNRU: [
-        { type: "Subv. PLAI", amount: "6 300+1 500", condition: "Doublé si AA" },
-        { type: "Prêt PLAI", amount: "7 900+1 900", condition: "Doublé si AA" },
-        { type: "Prêt PLUS", amount: "6 700+5 600", condition: "Doublé si AA" }
+        { type: "Subv. PLAI", amount: "6 300+1 500 €", condition: "Doublé si AA." },
+        { type: "Prêt PLAI", amount: "7 900+1 900 €", condition: "Doublé si AA." },
+        { type: "Prêt PLUS", amount: "6 700+5 600 €", condition: "Doublé si AA." }
     ],
     subsidiesCD: [
-        { type: "CD PLAI", amount: "27 000 €", condition: "Forfait" },
-        { type: "CD PLAI-A", amount: "33 250 €", condition: "Ttes zones" },
-        { type: "CD PLUS", amount: "18 000 €", condition: "Forfait" },
-        { type: "CD PLS", amount: "4 000 €", condition: "Forfait" }
+        { type: "CD PLAI", amount: "27 000 €", condition: "Forfaitaire." },
+        { type: "CD PLAI-A", amount: "33 250 €", condition: "Toutes zones." },
+        { type: "CD PLUS", amount: "18 000 €", condition: "Forfaitaire." },
+        { type: "CD PLS", amount: "4 000 €", condition: "Forfaitaire." }
     ],
     marginsRE2020: [
         { type: "RE2020 Base", product: "PLUS", margin: "Z2:0%|Z3:0%" },
@@ -235,20 +241,20 @@ const CUD_DEF = {
 const CAPH_DEF = { ...CUD_DEF, id: 'caph', name: "Porte du Hainaut (CAPH)",
     subsidiesState: CUD_DEF.subsidiesState,
     subsidiesEPCI: [
-        { type: "PLAI (Zone U)", amount: "3 000 €", condition: "/lgt" },
-        { type: "PLAI (Passif)", amount: "+ 3 000 €", condition: "/lgt" },
-        { type: "PLAI (T2 40%)", amount: "+ 1 000 €", condition: "/lgt" },
-        { type: "PLAI (Vertueux)", amount: "+ 1 500 €", condition: "/lgt" },
-        { type: "PLAI (Cuve)", amount: "+ 500 €", condition: "/cuve" },
-        { type: "PLAI AA", amount: "5 000 €", condition: "Max 25k/opé" },
-        { type: "PLUS (Zone U)", amount: "1 000 €", condition: "/lgt" },
-        { type: "PLUS (Passif)", amount: "+ 3 000 €", condition: "/lgt" },
-        { type: "PLUS (T2 40%)", amount: "+ 1 000 €", condition: "/lgt" },
-        { type: "PLUS (Vertueux)", amount: "+ 1 500 €", condition: "/lgt" },
-        { type: "PLUS AA", amount: "+ 1 500 €", condition: "Vertueux" },
-        { type: "PLS (Passif)", amount: "+ 1 000 €", condition: "/lgt" },
-        { type: "PLS (T2 40%)", amount: "+ 1 000 €", condition: "/lgt" },
-        { type: "PLS (Vertueux)", amount: "+ 1 500 €", condition: "/lgt" }
+        { type: "PLAI (Zone U)", amount: "3 000 €", condition: "Par logement (Zone Urbaine)." },
+        { type: "PLAI (Passif)", amount: "+ 3 000 €", condition: "Bonus performance Passive." },
+        { type: "PLAI (T2 40%)", amount: "+ 1 000 €", condition: "Si 40% de T2 dans l'opération." },
+        { type: "PLAI (Vertueux)", amount: "+ 1 500 €", condition: "Matériaux biosourcés." },
+        { type: "PLAI (Cuve)", amount: "+ 500 €", condition: "Récupération eau de pluie." },
+        { type: "PLAI AA", amount: "5 000 €", condition: "Plafonné à 25 000€ par opération." },
+        { type: "PLUS (Zone U)", amount: "1 000 €", condition: "Par logement (Zone Urbaine)." },
+        { type: "PLUS (Passif)", amount: "+ 3 000 €", condition: "Bonus performance Passive." },
+        { type: "PLUS (T2 40%)", amount: "+ 1 000 €", condition: "Si 40% de T2 dans l'opération." },
+        { type: "PLUS (Vertueux)", amount: "+ 1 500 €", condition: "Matériaux biosourcés." },
+        { type: "PLUS AA", amount: "+ 1 500 €", condition: "Uniquement si Vertueux." },
+        { type: "PLS (Passif)", amount: "+ 1 000 €", condition: "Bonus performance Passive." },
+        { type: "PLS (T2 40%)", amount: "+ 1 000 €", condition: "Si 40% de T2 dans l'opération." },
+        { type: "PLS (Vertueux)", amount: "+ 1 500 €", condition: "Matériaux biosourcés." }
     ],
     marginsRE2020: [
         { type: "RE2020 Base", product: "PLUS", margin: "0%" },
@@ -295,14 +301,14 @@ const CAVM_DEF = { ...CUD_DEF, id: 'cavm', name: "Valenciennes Métropole (CAVM)
         { type: "PLUS - PNRQAD", amount: "2 600", condition: "B1 et B2" }
     ],
     subsidiesEPCI: [
-        { type: "PLAI / PLUS", amount: "3 000 €", condition: "Neuf Maing/Hergnies" },
-        { type: "PLAI AA", amount: "0 €", condition: "PR < 2500" },
-        { type: "PLUS AA", amount: "15 000 €", condition: "PR > 2500 + 10% FP" },
-        { type: "PLUS AA", amount: "30 000 €", condition: "PR > 2500 + 20% FP" },
-        { type: "PLUS AA (Max)", amount: "40 000 €", condition: "PR + 20% FP + ACV" },
-        { type: "PLS AA", amount: "0 €", condition: "Non cumulable" },
-        { type: "PSLA", amount: "Max 30 000 €", condition: "Groupe 3 + TVA 5.5" },
-        { type: "Habitat inclusif", amount: "1 000 €", condition: "Aide EPCI + CD" }
+        { type: "PLAI / PLUS", amount: "3 000 €", condition: "Neuf (Maing/Hergnies uniquement)." },
+        { type: "PLAI AA", amount: "0 €", condition: "Si Prix Revient < 2500€." },
+        { type: "PLUS AA", amount: "15 000 €", condition: "Si PR > 2500€ + 10% Fonds Propres." },
+        { type: "PLUS AA", amount: "30 000 €", condition: "Si PR > 2500€ + 20% Fonds Propres." },
+        { type: "PLUS AA (Max)", amount: "40 000 €", condition: "Si PR + 20% FP + Analyse Cycle Vie." },
+        { type: "PLS AA", amount: "0 €", condition: "Non cumulable." },
+        { type: "PSLA", amount: "Max 30 000 €", condition: "Groupe 3 + TVA 5.5%." },
+        { type: "Habitat inclusif", amount: "1 000 €", condition: "Aide conjointe EPCI + CD." }
     ],
     marginsRE2020: [
         { type: "RE2020 Base", product: "PLUS", margin: "0%" },
@@ -327,15 +333,15 @@ const CAVM_DEF = { ...CUD_DEF, id: 'cavm', name: "Valenciennes Métropole (CAVM)
 const CAD_DEF = { ...CUD_DEF, id: 'cad', name: "Douaisis Agglo (CAD)",
     subsidiesState: CUD_DEF.subsidiesState,
     subsidiesEPCI: [
-        { type: "PLAI", amount: "3 000 €", condition: "/lgt" },
-        { type: "PLAI (Petits)", amount: "+ 5 000 €", condition: "Studio/T1/T2" },
-        { type: "PLAI (GDV)", amount: "+ 5 000 €", condition: "Gens Voyage" },
-        { type: "PLAI Adapté", amount: "5 000 €", condition: "Cumul PLAI" },
-        { type: "PLUS", amount: "3 000 €", condition: "Maing/Hergnies" },
-        { type: "PLAI AA", amount: "5 000 €", condition: "Cumul PLAI" },
-        { type: "PSLA", amount: "5 000 €", condition: "PV max 2000" },
-        { type: "Accession", amount: "5 000 €", condition: "PV max 2250" },
-        { type: "Habitat inclusif", amount: "1 000 €", condition: "Aide EPCI" }
+        { type: "PLAI", amount: "3 000 €", condition: "Par logement." },
+        { type: "PLAI (Petits)", amount: "+ 5 000 €", condition: "Typologie Studio / T1 / T2." },
+        { type: "PLAI (GDV)", amount: "+ 5 000 €", condition: "Gens du Voyage." },
+        { type: "PLAI Adapté", amount: "5 000 €", condition: "Cumulable avec PLAI classique." },
+        { type: "PLUS", amount: "3 000 €", condition: "Maing/Hergnies uniquement." },
+        { type: "PLAI AA", amount: "5 000 €", condition: "Cumulable avec PLAI classique." },
+        { type: "PSLA", amount: "5 000 €", condition: "Prix Vente max 2000€/m²." },
+        { type: "Accession", amount: "5 000 €", condition: "Prix Vente max 2250€/m²." },
+        { type: "Habitat inclusif", amount: "1 000 €", condition: "Aide EPCI." }
     ],
     marginsRE2020: [
         { type: "RE2020 Base", product: "PLUS", margin: "0%" },
@@ -368,7 +374,7 @@ const CAD_DEF = { ...CUD_DEF, id: 'cad', name: "Douaisis Agglo (CAD)",
 
 const CAMVS_DEF = { ...CUD_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMVS)",
     subsidiesState: CUD_DEF.subsidiesState,
-    subsidiesEPCI: [{ type: "Aide", amount: "Variable", condition: "Selon délib" }],
+    subsidiesEPCI: [{ type: "Aide", amount: "Variable", condition: "Selon délibération en vigueur." }],
     marginsRE2020: [
         { type: "RE2020 Base", product: "PLUS", margin: "0%" },
         { type: "Bbio -10%", product: "PLUS", margin: "6%" },
@@ -428,8 +434,9 @@ const fetchAllCommunes = async () => {
       if (snap.empty) throw new Error("DB empty");
       return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
   } catch (error) { 
-      console.warn("Mode secours: Utilisation des données locales.");
-      // EN CAS D'ERREUR DB, on retourne la liste manuelle
+      console.warn("Utilisation du mode secours (Manuel + API live)");
+      // En cas de problème DB, on retourne la liste manuelle
+      // Le reste sera récupéré en live via API si besoin
       return MANUAL_OVERRIDES;
   }
 };
@@ -466,23 +473,14 @@ const searchGeoApi = async (term) => {
         const response = await fetch(`https://geo.api.gouv.fr/communes?codeDepartement=59&nom=${term}&fields=nom,code,population,epci&boost=population&limit=10`);
         const data = await response.json();
         return data.map((item) => {
-            // VERIFICATION : Est-ce qu'on a une donnée manuelle pour cette commune ?
+            // Check for manual override first
             const manual = MANUAL_OVERRIDES.find(m => m.insee === item.code);
-            
-            // SI OUI : On l'utilise en priorité absolue (Zonage, Stats, Nom...)
-            if (manual) {
-                return { 
-                    ...manual, 
-                    epci: item.epci?.nom || manual.epci, // On met juste à jour l'EPCI si l'API l'a
-                    isApiSource: false 
-                };
-            }
+            if (manual) return { ...manual, epci: item.epci?.nom || manual.epci, isApiSource: false };
 
-            // SI NON : On construit l'objet avec les données de l'API (et des "null" pour ce qu'on sait pas)
             const epciName = item.epci ? item.epci.nom : "Non renseigné";
             let autoDT = "À définir";
             const n = epciName.toLowerCase();
-            
+            // Simplified DT Logic for display
             if (n.includes("lille")) autoDT = "Territoire Métropole";
             else if (n.includes("dunkerque") || n.includes("flandre")) autoDT = "Territoire Flandre";
             else if (n.includes("valenciennes") || n.includes("hainaut") || n.includes("douaisis") || n.includes("cambrai") || n.includes("sambre")) autoDT = "Territoire Hainaut";
@@ -760,7 +758,7 @@ const AidCard = ({ title, icon: Icon, color, data }) => {
                             <span className={`font-mono font-bold ${t.amount} text-sm`}>{item.amount}</span>
                         </div>
                         {item.condition && (
-                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${t.badge}`}>
+                            <span className={`text-[11px] text-slate-500 italic block mt-1`}>
                                 {item.condition}
                             </span>
                         )}
@@ -981,7 +979,7 @@ const App = () => {
                   console.log("Base incomplète, lancement du seed...");
                   setIsSeeding(true);
                   seedDatabase().then(() => {
-                      setIsSeeding(false);
+                      setTimeout(() => setIsSeeding(false), 3000); // UI DISPARAIT APRES 3 SECONDES
                       fetchAllCommunes().then(setAllCommunes);
                   });
               } else {
