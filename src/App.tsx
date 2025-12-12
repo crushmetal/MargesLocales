@@ -4,7 +4,7 @@ import {
   CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
   X, Calculator, ChevronUp, CheckSquare, Square, 
   Landmark, BadgeCheck, MapPinned, Target, Download, FileText, Edit3, ShieldAlert, Activity,
-  Euro, Info, WifiOff, Briefcase, Home
+  Euro, Info, WifiOff, Briefcase, Home, RefreshCw
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -35,7 +35,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// INITIALISATION FIRESTORE AVEC LONG POLLING
 const db = initializeFirestore(app, {
   experimentalForceLongPolling: true,
 });
@@ -48,9 +47,34 @@ const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
 
 /**
  * ==========================================
- * 2. DONNÉES STATIQUES (FALLBACK)
+ * 2. DONNÉES STATIQUES & RÉFÉRENCES
  * ==========================================
  */
+
+// Données manuelles prioritaires (Overrides)
+// Ces données écraseront les valeurs par défaut de l'API pour ces communes spécifiques
+const MANUAL_OVERRIDES = [
+  { insee: "59183", name: "Dunkerque", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 35.0, targetRate: 25, deficit: false } },
+  { insee: "59271", name: "Grande-Synthe", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 60.0, targetRate: 25, deficit: false } },
+  { insee: "59155", name: "Coudekerque-Branche", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 30.0, targetRate: 25, deficit: false } },
+  { insee: "59273", name: "Gravelines", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false } },
+  { insee: "59123", name: "Bray-Dunes", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 12.5, targetRate: 25, deficit: true } },
+  { insee: "59668", name: "Zuydcoote", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 8.0, targetRate: 25, deficit: true } },
+  { insee: "59360", name: "Loon-Plage", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false } },
+  { insee: "59588", name: "Téteghem-Coudekerque-Village", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 24.89, targetRate: 25, deficit: true } },
+  { insee: "59341", name: "Leffrinckoucke", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false } },
+  { insee: "59350", name: "Lille", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 24.5, targetRate: 25, deficit: true } },
+  { insee: "59512", name: "Roubaix", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 45.2, targetRate: 25, deficit: false } },
+  { insee: "59599", name: "Tourcoing", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 32.1, targetRate: 25, deficit: false } },
+  { insee: "59648", name: "Villeneuve-d'Ascq", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 42.0, targetRate: 25, deficit: false } },
+  { insee: "59368", name: "Marcq-en-Barœul", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 19.4, targetRate: 25, deficit: true } },
+  { insee: "59457", name: "Pérenchies", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 21.0, targetRate: 25, deficit: true } }, // Votre ajout spécifique
+  { insee: "59526", name: "Saint-Amand-les-Eaux", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.5, targetRate: 20, deficit: false } },
+  { insee: "59606", name: "Valenciennes", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false } },
+  { insee: "59173", name: "Douai", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 32.0, targetRate: 20, deficit: false } },
+  { insee: "59392", name: "Maubeuge", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 40.0, targetRate: 20, deficit: false } },
+  { insee: "59122", name: "Cambrai", zoning: { accession: "C", rental: "3" }, stats: { socialHousingRate: 22.0, targetRate: 20, deficit: false } }
+];
 
 const DDTM_DEF = {
     id: 'ddtm', name: 'DDTM 59 (Droit Commun)', lastUpdated: '01/01/2024',
@@ -353,29 +377,6 @@ const CAMVS_DEF = { ...CUD_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMV
 
 const ALL_REFS_DEF = [DDTM_DEF, MEL_DEF, CUD_DEF, CAPH_DEF, CAVM_DEF, CAD_DEF, CAMVS_DEF];
 
-const FULL_DB_59 = [
-  { insee: "59183", name: "Dunkerque", epci: "CU de Dunkerque", population: 86788, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 35.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59271", name: "Grande-Synthe", epci: "CU de Dunkerque", population: 20331, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 60.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59155", name: "Coudekerque-Branche", epci: "CU de Dunkerque", population: 20765, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 30.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59273", name: "Gravelines", epci: "CU de Dunkerque", population: 11223, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59123", name: "Bray-Dunes", epci: "CU de Dunkerque", population: 4380, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 12.5, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59668", name: "Zuydcoote", epci: "CU de Dunkerque", population: 1600, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 8.0, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59360", name: "Loon-Plage", epci: "CU de Dunkerque", population: 6039, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59588", name: "Téteghem-Coudekerque-Village", epci: "CU de Dunkerque", population: 8384, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 24.89, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59341", name: "Leffrinckoucke", epci: "CU de Dunkerque", population: 4124, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59098", name: "Bourbourg", epci: "CU de Dunkerque", population: 7023, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 25.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "C", rental: "3" } },
-  { insee: "59350", name: "Lille", epci: "Métropole Européenne de Lille", population: 236710, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 24.5, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "A", rental: "1" } },
-  { insee: "59512", name: "Roubaix", epci: "Métropole Européenne de Lille", population: 98892, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 45.2, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B1", rental: "1" } },
-  { insee: "59599", name: "Tourcoing", epci: "Métropole Européenne de Lille", population: 99011, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 32.1, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B1", rental: "1" } },
-  { insee: "59648", name: "Villeneuve-d'Ascq", epci: "Métropole Européenne de Lille", population: 62067, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 42.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B1", rental: "1" } },
-  { insee: "59368", name: "Marcq-en-Barœul", epci: "Métropole Européenne de Lille", population: 39356, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 19.4, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "A", rental: "1" } },
-  { insee: "59526", name: "Saint-Amand-les-Eaux", epci: "CA de la Porte du Hainaut", population: 15980, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 25.5, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59606", name: "Valenciennes", epci: "CA Valenciennes Métropole", population: 42991, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59173", name: "Douai", epci: "Douaisis Agglo", population: 39648, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 32.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59392", name: "Maubeuge", epci: "CA Maubeuge Val de Sambre", population: 29066, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 40.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59122", name: "Cambrai", epci: "CA de Cambrai", population: 31425, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 22.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "C", rental: "3" } }
-];
-
 /**
  * ==========================================
  * 3. SERVICES & LOGIQUE
@@ -414,10 +415,13 @@ const getRefsCollection = () => collection(db, ...REFS_DATA_PATH);
 const fetchAllCommunes = async () => {
   try { 
       const snap = await getDocs(getCommunesCollection()); 
+      if (snap.empty) throw new Error("DB empty");
       return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
   } catch (error) { 
-      console.warn("Mode hors ligne: Utilisation des données locales pour les communes.");
-      return FULL_DB_59;
+      console.warn("Utilisation du mode secours (Manuel + API live)");
+      // En cas de problème DB, on retourne la liste manuelle
+      // Le reste sera récupéré en live via API si besoin
+      return MANUAL_OVERRIDES;
   }
 };
 
@@ -450,19 +454,24 @@ const deleteCommuneFromDb = async (insee) => {
 const searchGeoApi = async (term) => {
     if (term.length < 2) return [];
     try {
-        const response = await fetch(`https://geo.api.gouv.fr/communes?codeDepartement=59&nom=${term}&fields=nom,code,population,epci&boost=population&limit=5`);
+        const response = await fetch(`https://geo.api.gouv.fr/communes?codeDepartement=59&nom=${term}&fields=nom,code,population,epci&boost=population&limit=10`);
         const data = await response.json();
         return data.map((item) => {
+            // Check for manual override first
+            const manual = MANUAL_OVERRIDES.find(m => m.insee === item.code);
+            if (manual) return { ...manual, epci: item.epci?.nom || manual.epci, isApiSource: false };
+
             const epciName = item.epci ? item.epci.nom : "Non renseigné";
             let autoDT = "À définir";
             const n = epciName.toLowerCase();
             if (n.includes("lille") || n.includes("pévèle")) autoDT = "DDTM Métropole";
             else if (n.includes("dunkerque") || n.includes("flandre")) autoDT = "Flandre Grand Littoral";
             else if (n.includes("valenciennes") || n.includes("hainaut") || n.includes("douaisis") || n.includes("cambrai") || n.includes("sambre")) autoDT = "Hainaut - Douaisis - Cambrésis";
+            
             return {
                 insee: item.code, name: item.nom, population: item.population, epci: epciName, directionTerritoriale: autoDT,
                 stats: { socialHousingRate: 0, targetRate: 20, deficit: false, exempt: false },
-                zoning: { accession: "C", rental: "3" }, 
+                zoning: { accession: "C", rental: "3" }, // Défaut
                 isApiSource: true
             };
         });
@@ -471,22 +480,71 @@ const searchGeoApi = async (term) => {
 
 const seedDatabase = async () => {
     try {
-        const commSnap = await getDocs(getCommunesCollection());
-        if (commSnap.empty) {
+        // 1. Récupération de TOUTES les communes du 59 via l'API
+        console.log("Récupération de toutes les communes du 59...");
+        const response = await fetch('https://geo.api.gouv.fr/communes?codeDepartement=59&fields=nom,code,population,epci');
+        const apiCommunes = await response.json();
+        
+        console.log(`${apiCommunes.length} communes trouvées.`);
+
+        // 2. Préparation des données avec Fusion (API + Manuelles)
+        const allCommunesData = apiCommunes.map(c => {
+            // Est-ce qu'on a une donnée manuelle pour cette commune ?
+            const manual = MANUAL_OVERRIDES.find(m => m.insee === c.code);
+            
+            // Logique DT
+            const epciName = c.epci ? c.epci.nom : "Non renseigné";
+            let autoDT = "À définir";
+            const n = epciName.toLowerCase();
+            if (n.includes("lille") || n.includes("pévèle")) autoDT = "DDTM Métropole";
+            else if (n.includes("dunkerque") || n.includes("flandre")) autoDT = "Flandre Grand Littoral";
+            else if (n.includes("valenciennes") || n.includes("hainaut") || n.includes("douaisis") || n.includes("cambrai") || n.includes("sambre")) autoDT = "Hainaut - Douaisis - Cambrésis";
+
+            if (manual) {
+                return {
+                    ...manual,
+                    population: c.population,
+                    epci: epciName, // On met à jour l'EPCI si l'API est plus fraîche
+                    directionTerritoriale: autoDT,
+                    lastUpdated: new Date().toLocaleDateString('fr-FR')
+                };
+            } else {
+                return {
+                    insee: c.code,
+                    name: c.nom,
+                    population: c.population,
+                    epci: epciName,
+                    directionTerritoriale: autoDT,
+                    stats: { socialHousingRate: 0, targetRate: 20, deficit: false, exempt: false }, // Défaut
+                    zoning: { accession: "C", rental: "3" }, // Défaut
+                    lastUpdated: new Date().toLocaleDateString('fr-FR')
+                };
+            }
+        });
+
+        // 3. Écriture par Batchs (Max 500 ops par batch Firestore)
+        const CHUNK_SIZE = 400; 
+        for (let i = 0; i < allCommunesData.length; i += CHUNK_SIZE) {
+            const chunk = allCommunesData.slice(i, i + CHUNK_SIZE);
             const batch = writeBatch(db);
-            FULL_DB_59.forEach((c) => { 
-                batch.set(doc(db, ...PUBLIC_DATA_PATH, c.insee), { ...c, lastUpdated: new Date().toLocaleDateString('fr-FR') });
+            chunk.forEach(c => {
+                const docRef = doc(db, ...PUBLIC_DATA_PATH, c.insee);
+                batch.set(docRef, c);
             });
             await batch.commit();
+            console.log(`Batch ${i/CHUNK_SIZE + 1} écrit.`);
         }
+
+        // 4. Écriture des Références
         const batchRefs = writeBatch(db);
         ALL_REFS_DEF.forEach((r) => { 
             batchRefs.set(doc(db, ...REFS_DATA_PATH, r.id), r, { merge: true });
         });
         await batchRefs.commit();
+        
         return true;
     } catch (e) {
-        console.warn("Mode Lecture Seule (Impossible d'écrire en DB):", e.message);
+        console.warn("Mode Lecture Seule / Echec Seed:", e.message);
         return false;
     }
 };
@@ -739,7 +797,7 @@ const Dashboard = ({ data, isAdmin }) => {
                     </div>
                 </div>
 
-                {/* Second Row: Zonage (En haut, prominent) */}
+                {/* Second Row: Zoning (En haut, prominent) */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-slate-100 pt-4">
                     <div className="bg-purple-50 p-3 rounded-xl flex items-center justify-between border border-purple-100 shadow-sm">
                         <div className="text-sm text-purple-900 font-medium">Zone Locative</div>
@@ -875,8 +933,9 @@ const App = () => {
   const [user, setUser] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [showEditor, setShowEditor] = useState(false);
-  const [allCommunes, setAllCommunes] = useState(FULL_DB_59); 
+  const [allCommunes, setAllCommunes] = useState(MANUAL_OVERRIDES); 
   const [dbError, setDbError] = useState(null);
+  const [isSeeding, setIsSeeding] = useState(false);
 
   // AUTH SETUP - MUST USE THIS PATTERN
   useEffect(() => {
@@ -895,18 +954,20 @@ const App = () => {
 
   useEffect(() => {
       if(user) {
-          seedDatabase()
-            .then(() => fetchAllCommunes())
-            .then((res) => {
-                if (res.length > 0) {
-                    setAllCommunes(res);
-                    setDbError(null);
-                }
-            })
-            .catch(err => {
-                // Ignore DB errors on init, rely on local fallback
-                console.warn("DB init issues, running in offline/hybrid mode.");
-            });
+          // Au démarrage, on tente de charger les communes
+          fetchAllCommunes().then(res => {
+              // Si on n'a que les overrides (ou moins), c'est signe qu'il faut seeder
+              if (res.length <= MANUAL_OVERRIDES.length + 10) {
+                  console.log("Base incomplète, lancement du seed...");
+                  setIsSeeding(true);
+                  seedDatabase().then(() => {
+                      setIsSeeding(false);
+                      fetchAllCommunes().then(setAllCommunes);
+                  });
+              } else {
+                  setAllCommunes(res);
+              }
+          });
       }
   }, [user]);
 
@@ -914,8 +975,17 @@ const App = () => {
     const search = async () => {
         if (searchTerm.length < 2) { setSuggestions([]); return; }
         setLoading(true);
+        // Recherche locale d'abord
         const localMatches = allCommunes.filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase())).slice(0, 5);
         
+        // Si on a assez de résultats locaux, on les utilise (évite les appels API inutiles si DB pleine)
+        if (localMatches.length >= 5) {
+            setSuggestions(localMatches);
+            setLoading(false);
+            return;
+        }
+
+        // Sinon fallback API (utile si offline/seed incomplet)
         let apiRes = [];
         try {
            if (navigator.onLine) apiRes = await searchGeoApi(searchTerm);
@@ -968,6 +1038,16 @@ const App = () => {
                     <h3 className="font-bold text-red-800">Erreur de connexion à la base de données</h3>
                     <p className="text-sm text-red-700 mt-1">{dbError}</p>
                     <p className="text-xs text-red-500 mt-2 italic">L'application fonctionne en mode hors ligne avec les données locales.</p>
+                </div>
+            </div>
+        )}
+
+        {isSeeding && (
+            <div className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50 animate-bounce">
+                <RefreshCw className="animate-spin" />
+                <div>
+                    <p className="font-bold text-sm">Mise à jour de la base...</p>
+                    <p className="text-xs opacity-80">Importation des 648 communes</p>
                 </div>
             </div>
         )}
