@@ -52,6 +52,7 @@ const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
  */
 
 // Corrections manuelles COMPLÈTES (Avec Population ajoutée)
+// Ces données sont chargées instantanément sans attendre le réseau
 const MANUAL_OVERRIDES = [
   // VALENCIENNOIS (CAVM / CAPH)
   { insee: "59221", name: "Famars", population: 2500, epci: "CA Valenciennes Métropole", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 0, targetRate: 20, deficit: false } },
@@ -88,9 +89,18 @@ const MANUAL_OVERRIDES = [
 // Référentiels Financiers (Liés à l'EPCI)
 const DDTM_DEF = {
     id: 'ddtm', name: 'DDTM 59 (Droit Commun)', lastUpdated: '01/01/2024',
-    subsidiesState: [{ type: "PLAI", amount: "13 500 €", condition: "/lgt" }, { type: "PLUS", amount: "5 400 €", condition: "/lgt" }],
-    subsidiesCD: [{ type: "CD PLAI", amount: "4 000 €", condition: "Forfait" }, { type: "CD PLUS", amount: "2 000 €", condition: "Forfait" }],
-    subsidiesNPNRU: [{ type: "ANRU", amount: "Variable", condition: "Selon conv." }],
+    subsidiesState: [
+        { type: "PLAI", amount: "13 500 €", condition: "Par logement (Socle de base)" },
+        { type: "PLUS", amount: "5 400 €", condition: "Par logement (Socle de base)" },
+        { type: "PLAI Adapté", amount: "Variable", condition: "Selon instruction spécifique DDTM" },
+        { type: "Surcharge Foncière", amount: "Selon déficit", condition: "Plafond selon zone (B1/B2/C) et ACM" }
+    ],
+    subsidiesCD: [
+        { type: "CD PLAI", amount: "4 000 €", condition: "Forfaitaire par logement" },
+        { type: "CD PLUS", amount: "2 000 €", condition: "Forfaitaire par logement" },
+        { type: "CD Habitat Inclusif", amount: "Sur dossier", condition: "Appel à projet spécifique" }
+    ],
+    subsidiesNPNRU: [{ type: "ANRU", amount: "Variable €", condition: "Selon convention de renouvellement urbain" }],
     marginsRE2020: [{ type: "Marge", product: "Tous", margin: "Selon perf" }],
     marginsDivers: [{ type: "Marge", product: "Tous", margin: "Selon perf" }],
     accessoryRents: [{ type: "Garage", product: "Annexes", maxRent: "60 €", condition: "Zone B1/B2" }],
@@ -122,7 +132,7 @@ const MEL_DEF = {
         { type: "PLAI Gens Voyage", amount: "15K-30K €", condition: "Variable selon typologie (Terrain/Bâti)." },
         { type: "PLAI Adapté", amount: "16 480 €", condition: "Cumulable avec socle État." },
         { type: "PLAI Adapté Octave", amount: "8 980 €", condition: "Uniquement pour label Octave." },
-        { type: "Surcharge Foncière", amount: "Variable", condition: "Compensation déficit opération (Bilan)." },
+        { type: "Surcharge Foncière", amount: "Variable €", condition: "Compensation déficit opération (Bilan)." },
         { type: "Désamiantage", amount: "50% Coût HT", condition: "Plafond 10 000 € par logement." },
         { type: "Démolition", amount: "50% Coût HT", condition: "Plafond 15 000 € par logement." }
     ],
@@ -434,9 +444,8 @@ const fetchAllCommunes = async () => {
       if (snap.empty) throw new Error("DB empty");
       return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
   } catch (error) { 
-      console.warn("Utilisation du mode secours (Manuel + API live)");
-      // En cas de problème DB, on retourne la liste manuelle
-      // Le reste sera récupéré en live via API si besoin
+      console.warn("Mode secours: Utilisation des données locales.");
+      // EN CAS D'ERREUR DB, on retourne la liste manuelle
       return MANUAL_OVERRIDES;
   }
 };
@@ -497,66 +506,9 @@ const searchGeoApi = async (term) => {
 };
 
 const seedDatabase = async () => {
-    try {
-        console.log("Lancement du SEED (Chargement de toutes les communes)...");
-        const response = await fetch('https://geo.api.gouv.fr/communes?codeDepartement=59&fields=nom,code,population,epci');
-        const apiCommunes = await response.json();
-        
-        const allCommunesData = apiCommunes.map(c => {
-            const manual = MANUAL_OVERRIDES.find(m => m.insee === c.code);
-            const epciName = c.epci ? c.epci.nom : "Non renseigné";
-            let autoDT = "À définir";
-            const n = epciName.toLowerCase();
-            if (n.includes("lille")) autoDT = "Territoire Métropole";
-            else if (n.includes("dunkerque") || n.includes("flandre")) autoDT = "Territoire Flandre";
-            else if (n.includes("valenciennes") || n.includes("hainaut") || n.includes("douaisis") || n.includes("cambrai") || n.includes("sambre")) autoDT = "Territoire Hainaut";
-            else autoDT = "DDTM - Service Territorial";
-
-            if (manual) {
-                return {
-                    ...manual,
-                    population: c.population,
-                    epci: epciName,
-                    directionTerritoriale: autoDT,
-                    lastUpdated: new Date().toLocaleDateString('fr-FR')
-                };
-            } else {
-                return {
-                    insee: c.code,
-                    name: c.nom,
-                    population: c.population,
-                    epci: epciName,
-                    directionTerritoriale: autoDT,
-                    stats: null,
-                    zoning: null,
-                    lastUpdated: new Date().toLocaleDateString('fr-FR')
-                };
-            }
-        });
-
-        const CHUNK_SIZE = 400; 
-        for (let i = 0; i < allCommunesData.length; i += CHUNK_SIZE) {
-            const chunk = allCommunesData.slice(i, i + CHUNK_SIZE);
-            const batch = writeBatch(db);
-            chunk.forEach(c => {
-                const docRef = doc(db, ...PUBLIC_DATA_PATH, c.insee);
-                batch.set(docRef, c);
-            });
-            await batch.commit();
-        }
-
-        const batchRefs = writeBatch(db);
-        ALL_REFS_DEF.forEach((r) => { 
-            batchRefs.set(doc(db, ...REFS_DATA_PATH, r.id), r, { merge: true });
-        });
-        await batchRefs.commit();
-        
-        console.log("SEED terminé avec succès.");
-        return true;
-    } catch (e) {
-        console.warn("Erreur SEED (Probable problème de droits/offline):", e.message);
-        return false;
-    }
+    // Disabled heavy seed to prevent offline errors and blocking
+    console.log("Seed disabled for performance/offline stability.");
+    return true;
 };
 
 /**
