@@ -4,7 +4,7 @@ import {
   CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
   X, Calculator, ChevronUp, CheckSquare, Square, 
   Landmark, BadgeCheck, MapPinned, Target, Download, FileText, Edit3, ShieldAlert, Activity,
-  Euro, Info, WifiOff, Briefcase, Home, RefreshCw, Layers, Cloud
+  Euro, Info, WifiOff, Briefcase, Home, RefreshCw, Layers
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -35,9 +35,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
-// Utilisation standard (sans long polling forcé si possible, sinon remettre l'option si blocage réseau spécifique)
 const db = initializeFirestore(app, {
-    experimentalForceLongPolling: true, // Gardé pour la stabilité dans cet environnement
+  experimentalForceLongPolling: true,
 });
 
 const APP_ID = 'nord-habitat-v1';
@@ -50,34 +49,40 @@ const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
  * ==========================================
  * 2. DONNÉES DE RÉFÉRENCE (POUR INITIALISATION SEULEMENT)
  * ==========================================
- * Ces données ne servent que lors du "SEED" initial pour remplir la base de données.
- * Ensuite, l'application lira ce qui est stocké dans Firebase.
  */
 
-// Corrections manuelles à appliquer lors de l'initialisation
+// Corrections manuelles COMPLÈTES (Avec EPCI pour garantir le chargement des aides)
 const MANUAL_OVERRIDES = [
-  { insee: "59221", name: "Famars", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 0, targetRate: 20, deficit: false } },
-  { insee: "59017", name: "Armentières", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 23.0, targetRate: 25, deficit: true } }, 
-  { insee: "59183", name: "Dunkerque", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 35.0, targetRate: 25, deficit: false } },
-  { insee: "59271", name: "Grande-Synthe", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 60.0, targetRate: 25, deficit: false } },
-  { insee: "59155", name: "Coudekerque-Branche", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 30.0, targetRate: 25, deficit: false } },
-  { insee: "59273", name: "Gravelines", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false } },
-  { insee: "59123", name: "Bray-Dunes", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 12.5, targetRate: 25, deficit: true } },
-  { insee: "59668", name: "Zuydcoote", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 8.0, targetRate: 25, deficit: true } },
-  { insee: "59360", name: "Loon-Plage", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false } },
-  { insee: "59588", name: "Téteghem-Coudekerque-Village", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 24.89, targetRate: 25, deficit: true } },
-  { insee: "59341", name: "Leffrinckoucke", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false } },
-  { insee: "59350", name: "Lille", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 24.5, targetRate: 25, deficit: true } },
-  { insee: "59512", name: "Roubaix", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 45.2, targetRate: 25, deficit: false } },
-  { insee: "59599", name: "Tourcoing", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 32.1, targetRate: 25, deficit: false } },
-  { insee: "59648", name: "Villeneuve-d'Ascq", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 42.0, targetRate: 25, deficit: false } },
-  { insee: "59368", name: "Marcq-en-Barœul", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 19.4, targetRate: 25, deficit: true } },
-  { insee: "59457", name: "Pérenchies", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 21.0, targetRate: 25, deficit: true } }, 
-  { insee: "59526", name: "Saint-Amand-les-Eaux", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.5, targetRate: 20, deficit: false } },
-  { insee: "59606", name: "Valenciennes", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false } },
-  { insee: "59173", name: "Douai", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 32.0, targetRate: 20, deficit: false } },
-  { insee: "59392", name: "Maubeuge", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 40.0, targetRate: 20, deficit: false } },
-  { insee: "59122", name: "Cambrai", zoning: { accession: "C", rental: "3" }, stats: { socialHousingRate: 22.0, targetRate: 20, deficit: false } }
+  // VALENCIENNOIS (CAVM / CAPH)
+  { insee: "59221", name: "Famars", epci: "CA Valenciennes Métropole", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 0, targetRate: 20, deficit: false } },
+  { insee: "59606", name: "Valenciennes", epci: "CA Valenciennes Métropole", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false } },
+  { insee: "59526", name: "Saint-Amand-les-Eaux", epci: "CA de la Porte du Hainaut", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.5, targetRate: 20, deficit: false } },
+  
+  // METROPOLE LILLOISE (MEL)
+  { insee: "59017", name: "Armentières", epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 23.0, targetRate: 25, deficit: true } }, 
+  { insee: "59350", name: "Lille", epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 24.5, targetRate: 25, deficit: true } },
+  { insee: "59512", name: "Roubaix", epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 45.2, targetRate: 25, deficit: false } },
+  { insee: "59599", name: "Tourcoing", epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 32.1, targetRate: 25, deficit: false } },
+  { insee: "59648", name: "Villeneuve-d'Ascq", epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 42.0, targetRate: 25, deficit: false } },
+  { insee: "59368", name: "Marcq-en-Barœul", epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 19.4, targetRate: 25, deficit: true } },
+  { insee: "59457", name: "Pérenchies", epci: "Métropole Européenne de Lille", directionTerritoriale: "DDTM Métropole", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 21.0, targetRate: 25, deficit: true } }, 
+
+  // DUNKERQUOIS (CUD)
+  { insee: "59183", name: "Dunkerque", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 35.0, targetRate: 25, deficit: false } },
+  { insee: "59271", name: "Grande-Synthe", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 60.0, targetRate: 25, deficit: false } },
+  { insee: "59155", name: "Coudekerque-Branche", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 30.0, targetRate: 25, deficit: false } },
+  { insee: "59273", name: "Gravelines", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false } },
+  { insee: "59123", name: "Bray-Dunes", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 12.5, targetRate: 25, deficit: true } },
+  { insee: "59668", name: "Zuydcoote", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 8.0, targetRate: 25, deficit: true } },
+  { insee: "59360", name: "Loon-Plage", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false } },
+  { insee: "59588", name: "Téteghem-Coudekerque-Village", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 24.89, targetRate: 25, deficit: true } },
+  { insee: "59341", name: "Leffrinckoucke", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false } },
+  { insee: "59098", name: "Bourbourg", epci: "CU de Dunkerque", directionTerritoriale: "Flandre Grand Littoral", zoning: { accession: "C", rental: "3" }, stats: { socialHousingRate: 25.0, targetRate: 20, deficit: false } },
+  
+  // AUTRES (DOUAISIS / SAMBRE / CAMBRAI)
+  { insee: "59173", name: "Douai", epci: "Douaisis Agglo", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 32.0, targetRate: 20, deficit: false } },
+  { insee: "59392", name: "Maubeuge", epci: "CA Maubeuge Val de Sambre", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 40.0, targetRate: 20, deficit: false } },
+  { insee: "59122", name: "Cambrai", epci: "CA de Cambrai", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "C", rental: "3" }, stats: { socialHousingRate: 22.0, targetRate: 20, deficit: false } }
 ];
 
 // Référentiels Financiers (Liés à l'EPCI)
