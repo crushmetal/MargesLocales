@@ -4,7 +4,7 @@ import {
   CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
   X, Calculator, ChevronUp, CheckSquare, Square, 
   Landmark, BadgeCheck, MapPinned, Target, Download, FileText, Edit3, ShieldAlert, Activity,
-  Euro, Info, WifiOff, Briefcase, Home, RefreshCw
+  Euro, Info, WifiOff, Briefcase, Home, RefreshCw, Layers, Cloud
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
@@ -35,8 +35,9 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 
+// Utilisation standard (sans long polling forcé si possible, sinon remettre l'option si blocage réseau spécifique)
 const db = initializeFirestore(app, {
-  experimentalForceLongPolling: true,
+    experimentalForceLongPolling: true, // Gardé pour la stabilité dans cet environnement
 });
 
 const APP_ID = 'nord-habitat-v1';
@@ -47,13 +48,16 @@ const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
 
 /**
  * ==========================================
- * 2. DONNÉES STATIQUES & RÉFÉRENCES
+ * 2. DONNÉES DE RÉFÉRENCE (POUR INITIALISATION SEULEMENT)
  * ==========================================
+ * Ces données ne servent que lors du "SEED" initial pour remplir la base de données.
+ * Ensuite, l'application lira ce qui est stocké dans Firebase.
  */
 
-// Données manuelles prioritaires (Overrides)
-// Ces données écraseront les valeurs par défaut de l'API pour ces communes spécifiques
+// Corrections manuelles à appliquer lors de l'initialisation
 const MANUAL_OVERRIDES = [
+  { insee: "59221", name: "Famars", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 0, targetRate: 20, deficit: false } },
+  { insee: "59017", name: "Armentières", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 23.0, targetRate: 25, deficit: true } }, 
   { insee: "59183", name: "Dunkerque", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 35.0, targetRate: 25, deficit: false } },
   { insee: "59271", name: "Grande-Synthe", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 60.0, targetRate: 25, deficit: false } },
   { insee: "59155", name: "Coudekerque-Branche", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 30.0, targetRate: 25, deficit: false } },
@@ -68,7 +72,7 @@ const MANUAL_OVERRIDES = [
   { insee: "59599", name: "Tourcoing", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 32.1, targetRate: 25, deficit: false } },
   { insee: "59648", name: "Villeneuve-d'Ascq", zoning: { accession: "B1", rental: "1" }, stats: { socialHousingRate: 42.0, targetRate: 25, deficit: false } },
   { insee: "59368", name: "Marcq-en-Barœul", zoning: { accession: "A", rental: "1" }, stats: { socialHousingRate: 19.4, targetRate: 25, deficit: true } },
-  { insee: "59457", name: "Pérenchies", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 21.0, targetRate: 25, deficit: true } }, // Votre ajout spécifique
+  { insee: "59457", name: "Pérenchies", zoning: { accession: "B1", rental: "2" }, stats: { socialHousingRate: 21.0, targetRate: 25, deficit: true } }, 
   { insee: "59526", name: "Saint-Amand-les-Eaux", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 25.5, targetRate: 20, deficit: false } },
   { insee: "59606", name: "Valenciennes", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false } },
   { insee: "59173", name: "Douai", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 32.0, targetRate: 20, deficit: false } },
@@ -76,6 +80,7 @@ const MANUAL_OVERRIDES = [
   { insee: "59122", name: "Cambrai", zoning: { accession: "C", rental: "3" }, stats: { socialHousingRate: 22.0, targetRate: 20, deficit: false } }
 ];
 
+// Référentiels Financiers (Liés à l'EPCI)
 const DDTM_DEF = {
     id: 'ddtm', name: 'DDTM 59 (Droit Commun)', lastUpdated: '01/01/2024',
     subsidiesState: [{ type: "PLAI", amount: "13 500 €", condition: "/lgt" }, { type: "PLUS", amount: "5 400 €", condition: "/lgt" }],
@@ -310,7 +315,7 @@ const CAVM_DEF = { ...CUD_DEF, id: 'cavm', name: "Valenciennes Métropole (CAVM)
         { type: "Locaux coll.", product: "PLUS", margin: "Formule" },
         { type: "Zone 3 Certifié", product: "PLUS", margin: "8%" }
     ],
-    accessoryRents: CAPH_DEF.accessoryRents,
+    accessoryRents: CAPH_DEF.accessoryRents, // Mêmes loyers que CAPH
     hasMargins: true, hasRents: true
 };
 
@@ -400,7 +405,7 @@ const getMarginValue = (marginStr, zoneRental) => {
 
 const getRefIdFromEpci = (epciName) => {
     const n = (epciName || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
-    if (n.includes("lille") || n.includes("pevele")) return 'mel';
+    if (n.includes("lille") && n.includes("metropole")) return 'mel'; 
     if (n.includes("dunkerque")) return 'cud';
     if (n.includes("porte du hainaut")) return 'caph';
     if (n.includes("douaisis") || n.includes("douai")) return 'cad';
@@ -418,9 +423,8 @@ const fetchAllCommunes = async () => {
       if (snap.empty) throw new Error("DB empty");
       return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
   } catch (error) { 
-      console.warn("Utilisation du mode secours (Manuel + API live)");
-      // En cas de problème DB, on retourne la liste manuelle
-      // Le reste sera récupéré en live via API si besoin
+      console.warn("Mode secours: Utilisation des données locales.");
+      // EN CAS D'ERREUR DB, on retourne la liste manuelle
       return MANUAL_OVERRIDES;
   }
 };
@@ -457,21 +461,32 @@ const searchGeoApi = async (term) => {
         const response = await fetch(`https://geo.api.gouv.fr/communes?codeDepartement=59&nom=${term}&fields=nom,code,population,epci&boost=population&limit=10`);
         const data = await response.json();
         return data.map((item) => {
-            // Check for manual override first
+            // VERIFICATION : Est-ce qu'on a une donnée manuelle pour cette commune ?
             const manual = MANUAL_OVERRIDES.find(m => m.insee === item.code);
-            if (manual) return { ...manual, epci: item.epci?.nom || manual.epci, isApiSource: false };
+            
+            // SI OUI : On l'utilise en priorité absolue (Zonage, Stats, Nom...)
+            if (manual) {
+                return { 
+                    ...manual, 
+                    epci: item.epci?.nom || manual.epci, // On met juste à jour l'EPCI si l'API l'a
+                    isApiSource: false 
+                };
+            }
 
+            // SI NON : On construit l'objet avec les données de l'API (et des "null" pour ce qu'on sait pas)
             const epciName = item.epci ? item.epci.nom : "Non renseigné";
             let autoDT = "À définir";
             const n = epciName.toLowerCase();
-            if (n.includes("lille") || n.includes("pévèle")) autoDT = "DDTM Métropole";
-            else if (n.includes("dunkerque") || n.includes("flandre")) autoDT = "Flandre Grand Littoral";
-            else if (n.includes("valenciennes") || n.includes("hainaut") || n.includes("douaisis") || n.includes("cambrai") || n.includes("sambre")) autoDT = "Hainaut - Douaisis - Cambrésis";
+            
+            if (n.includes("lille")) autoDT = "Territoire Métropole";
+            else if (n.includes("dunkerque") || n.includes("flandre")) autoDT = "Territoire Flandre";
+            else if (n.includes("valenciennes") || n.includes("hainaut") || n.includes("douaisis") || n.includes("cambrai") || n.includes("sambre")) autoDT = "Territoire Hainaut";
+            else autoDT = "DDTM - Service Territorial";
             
             return {
                 insee: item.code, name: item.nom, population: item.population, epci: epciName, directionTerritoriale: autoDT,
-                stats: { socialHousingRate: 0, targetRate: 20, deficit: false, exempt: false },
-                zoning: { accession: "C", rental: "3" }, // Défaut
+                stats: null, // Pas de donnée = Pas d'affichage
+                zoning: null, // Pas de donnée = Pas d'affichage
                 isApiSource: true
             };
         });
@@ -480,31 +495,25 @@ const searchGeoApi = async (term) => {
 
 const seedDatabase = async () => {
     try {
-        // 1. Récupération de TOUTES les communes du 59 via l'API
-        console.log("Récupération de toutes les communes du 59...");
+        console.log("Lancement du SEED (Chargement de toutes les communes)...");
         const response = await fetch('https://geo.api.gouv.fr/communes?codeDepartement=59&fields=nom,code,population,epci');
         const apiCommunes = await response.json();
         
-        console.log(`${apiCommunes.length} communes trouvées.`);
-
-        // 2. Préparation des données avec Fusion (API + Manuelles)
         const allCommunesData = apiCommunes.map(c => {
-            // Est-ce qu'on a une donnée manuelle pour cette commune ?
             const manual = MANUAL_OVERRIDES.find(m => m.insee === c.code);
-            
-            // Logique DT
             const epciName = c.epci ? c.epci.nom : "Non renseigné";
             let autoDT = "À définir";
             const n = epciName.toLowerCase();
-            if (n.includes("lille") || n.includes("pévèle")) autoDT = "DDTM Métropole";
-            else if (n.includes("dunkerque") || n.includes("flandre")) autoDT = "Flandre Grand Littoral";
-            else if (n.includes("valenciennes") || n.includes("hainaut") || n.includes("douaisis") || n.includes("cambrai") || n.includes("sambre")) autoDT = "Hainaut - Douaisis - Cambrésis";
+            if (n.includes("lille")) autoDT = "Territoire Métropole";
+            else if (n.includes("dunkerque") || n.includes("flandre")) autoDT = "Territoire Flandre";
+            else if (n.includes("valenciennes") || n.includes("hainaut") || n.includes("douaisis") || n.includes("cambrai") || n.includes("sambre")) autoDT = "Territoire Hainaut";
+            else autoDT = "DDTM - Service Territorial";
 
             if (manual) {
                 return {
                     ...manual,
                     population: c.population,
-                    epci: epciName, // On met à jour l'EPCI si l'API est plus fraîche
+                    epci: epciName,
                     directionTerritoriale: autoDT,
                     lastUpdated: new Date().toLocaleDateString('fr-FR')
                 };
@@ -515,14 +524,13 @@ const seedDatabase = async () => {
                     population: c.population,
                     epci: epciName,
                     directionTerritoriale: autoDT,
-                    stats: { socialHousingRate: 0, targetRate: 20, deficit: false, exempt: false }, // Défaut
-                    zoning: { accession: "C", rental: "3" }, // Défaut
+                    stats: null,
+                    zoning: null,
                     lastUpdated: new Date().toLocaleDateString('fr-FR')
                 };
             }
         });
 
-        // 3. Écriture par Batchs (Max 500 ops par batch Firestore)
         const CHUNK_SIZE = 400; 
         for (let i = 0; i < allCommunesData.length; i += CHUNK_SIZE) {
             const chunk = allCommunesData.slice(i, i + CHUNK_SIZE);
@@ -532,19 +540,18 @@ const seedDatabase = async () => {
                 batch.set(docRef, c);
             });
             await batch.commit();
-            console.log(`Batch ${i/CHUNK_SIZE + 1} écrit.`);
         }
 
-        // 4. Écriture des Références
         const batchRefs = writeBatch(db);
         ALL_REFS_DEF.forEach((r) => { 
             batchRefs.set(doc(db, ...REFS_DATA_PATH, r.id), r, { merge: true });
         });
         await batchRefs.commit();
         
+        console.log("SEED terminé avec succès.");
         return true;
     } catch (e) {
-        console.warn("Mode Lecture Seule / Echec Seed:", e.message);
+        console.warn("Erreur SEED (Probable problème de droits/offline):", e.message);
         return false;
     }
 };
@@ -649,7 +656,7 @@ const AdminCommuneEditor = ({ onClose, initialData }) => {
                             <>
                                 <td className="p-2 text-gray-500">{c.insee}</td>
                                 <td className="p-2 font-bold">{c.name}</td>
-                                <td className="p-2"><span className="bg-gray-100 px-1 rounded">{c.zoning.accession} / {c.zoning.rental}</span></td>
+                                <td className="p-2"><span className="bg-gray-100 px-1 rounded">{c.zoning?.accession || '-'} / {c.zoning?.rental || '-'}</span></td>
                                 <td className="p-2 flex gap-2">
                                     <button onClick={() => handleEdit(c)} className="text-blue-600"><Edit3 className="w-4 h-4"/></button>
                                     <button onClick={() => handleDelete(c.insee)} className="text-red-600"><Trash2 className="w-4 h-4"/></button>
@@ -801,11 +808,11 @@ const Dashboard = ({ data, isAdmin }) => {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-slate-100 pt-4">
                     <div className="bg-purple-50 p-3 rounded-xl flex items-center justify-between border border-purple-100 shadow-sm">
                         <div className="text-sm text-purple-900 font-medium">Zone Locative</div>
-                        <div className="text-2xl font-bold text-purple-700">{data.zoning.rental}</div>
+                        <div className="text-2xl font-bold text-purple-700">{data.zoning?.rental || "N/A"}</div>
                     </div>
                     <div className="bg-blue-50 p-3 rounded-xl flex items-center justify-between border border-blue-100 shadow-sm">
                         <div className="text-sm text-blue-900 font-medium">Zone Accession</div>
-                        <div className="text-2xl font-bold text-blue-700">{data.zoning.accession}</div>
+                        <div className="text-2xl font-bold text-blue-700">{data.zoning?.accession || "N/A"}</div>
                     </div>
                 </div>
             </div>
@@ -813,37 +820,45 @@ const Dashboard = ({ data, isAdmin }) => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Stats Column */}
                 <div className="lg:col-span-1 space-y-6">
-                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 h-full">
-                        <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
-                            <Activity className="text-blue-500" size={20}/> Situation SRU
-                        </h3>
-                        
-                        <div className="relative pt-4 pb-8 flex flex-col items-center">
-                            {/* Gauge Visualization */}
-                            <div className="relative w-40 h-20 overflow-hidden">
-                                <div className="absolute top-0 left-0 w-full h-full bg-slate-100 rounded-t-full"></div>
-                                <div 
-                                    className={`absolute top-0 left-0 w-full h-full rounded-t-full transition-all duration-1000 origin-bottom ${data.stats.socialHousingRate >= data.stats.targetRate ? 'bg-emerald-500' : 'bg-amber-500'}`}
-                                    style={{ transform: `rotate(${(Math.min(data.stats.socialHousingRate / 40, 1) * 180) - 180}deg)` }}
-                                ></div>
+                    {data.stats ? (
+                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 h-full">
+                            <h3 className="font-bold text-slate-800 mb-6 flex items-center gap-2">
+                                <Activity className="text-blue-500" size={20}/> Situation SRU
+                            </h3>
+                            
+                            <div className="relative pt-4 pb-8 flex flex-col items-center">
+                                {/* Gauge Visualization */}
+                                <div className="relative w-40 h-20 overflow-hidden">
+                                    <div className="absolute top-0 left-0 w-full h-full bg-slate-100 rounded-t-full"></div>
+                                    <div 
+                                        className={`absolute top-0 left-0 w-full h-full rounded-t-full transition-all duration-1000 origin-bottom ${data.stats.socialHousingRate >= data.stats.targetRate ? 'bg-emerald-500' : 'bg-amber-500'}`}
+                                        style={{ transform: `rotate(${(Math.min(data.stats.socialHousingRate / 40, 1) * 180) - 180}deg)` }}
+                                    ></div>
+                                </div>
+                                <div className="absolute top-16 font-bold text-3xl text-slate-900">{data.stats.socialHousingRate}%</div>
+                                <div className="mt-2 text-xs text-slate-400 text-center">Taux LLS actuel</div>
                             </div>
-                            <div className="absolute top-16 font-bold text-3xl text-slate-900">{data.stats.socialHousingRate}%</div>
-                            <div className="mt-2 text-xs text-slate-400 text-center">Taux LLS actuel</div>
-                        </div>
 
-                        <div className="space-y-4 mt-4">
-                            <div className="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
-                                <span className="text-slate-500">Objectif Triennal</span>
-                                <span className="font-semibold">{data.stats.targetRate}%</span>
-                            </div>
-                            <div className="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
-                                <span className="text-slate-500">Statut Carence</span>
-                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${data.stats.deficit ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
-                                    {data.stats.deficit ? 'Déficitaire' : 'Conforme'}
-                                </span>
+                            <div className="space-y-4 mt-4">
+                                <div className="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
+                                    <span className="text-slate-500">Objectif Triennal</span>
+                                    <span className="font-semibold">{data.stats.targetRate}%</span>
+                                </div>
+                                <div className="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
+                                    <span className="text-slate-500">Statut Carence</span>
+                                    <span className={`px-2 py-0.5 rounded text-xs font-bold ${data.stats.deficit ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
+                                        {data.stats.deficit ? 'Déficitaire' : 'Conforme'}
+                                    </span>
+                                </div>
                             </div>
                         </div>
-                    </div>
+                    ) : (
+                        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 h-full flex flex-col items-center justify-center text-center">
+                            <Activity className="text-slate-300 mb-4" size={48}/>
+                            <h3 className="text-slate-500 font-bold">Données SRU non disponibles</h3>
+                            <p className="text-xs text-slate-400 mt-2 px-4">Ces données n'ont pas encore été renseignées pour cette commune.</p>
+                        </div>
+                    )}
                 </div>
 
                 {/* Reference Data Column */}
@@ -885,7 +900,7 @@ const Dashboard = ({ data, isAdmin }) => {
                                                             <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs">{m.product}</span>
                                                         </td>
                                                         <td className="px-6 py-3 text-right font-mono text-blue-600 font-bold">
-                                                            {getMarginValue(m.margin, data.zoning.rental)}
+                                                            {getMarginValue(m.margin, data.zoning?.rental)}
                                                         </td>
                                                     </tr>
                                                 ))}
