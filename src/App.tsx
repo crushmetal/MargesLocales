@@ -4,16 +4,16 @@ import {
   CheckCircle, Save, Database, Loader2, Plus, Trash2, Lock, Unlock, 
   X, Calculator, ChevronUp, CheckSquare, Square, 
   Landmark, BadgeCheck, MapPinned, Target, Download, FileText, Edit3, ShieldAlert, Activity,
-  Euro, Info
+  Euro, Info, WifiOff, Briefcase, Home
 } from 'lucide-react';
 
 // FIREBASE IMPORTS
 import { initializeApp } from 'firebase/app';
 import { 
-  getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch
+  getFirestore, collection, doc, getDoc, getDocs, setDoc, deleteDoc, writeBatch, initializeFirestore
 } from 'firebase/firestore';
 import { 
-  getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken
+  getAuth, signInAnonymously, onAuthStateChanged
 } from 'firebase/auth';
 
 /**
@@ -22,15 +22,25 @@ import {
  * ==========================================
  */
 
-// --- CONFIGURATION FIREBASE DYNAMIQUE ---
-const firebaseConfig = JSON.parse(__firebase_config);
+// --- CONFIGURATION FIREBASE ---
+const firebaseConfig = {
+  apiKey: "AIzaSyDOBFXdCfEH0IJ_OsIH7rHijYT_NEY1FGA",
+  authDomain: "marges-locales59.firebaseapp.com",
+  projectId: "marges-locales59",
+  storageBucket: "marges-locales59.firebasestorage.app",
+  messagingSenderId: "1077584427724",
+  appId: "1:1077584427724:web:39e529e17d4021110e6069"
+};
+
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-const db = getFirestore(app);
 
-// UTILISATION DE L'ID DYNAMIQUE OBLIGATOIRE POUR LES PERMISSIONS
-const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'nord-habitat-v1';
+// INITIALISATION FIRESTORE AVEC LONG POLLING
+const db = initializeFirestore(app, {
+  experimentalForceLongPolling: true,
+});
 
+const APP_ID = 'nord-habitat-v1';
 const PUBLIC_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'communes'];
 const REFS_DATA_PATH = ['artifacts', APP_ID, 'public', 'data', 'references'];
 
@@ -38,139 +48,10 @@ const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
 
 /**
  * ==========================================
- * 2. UTILITAIRES & SERVICES
+ * 2. DONNÉES STATIQUES (FALLBACK)
  * ==========================================
  */
 
-const parseCurrency = (v) => { 
-    if(!v || typeof v !== 'string') return 0;
-    const m = v.match(/(\d+)/g); return m ? Math.max(...m.map(n => parseInt(n))) : 0; 
-};
-
-const formatCurrency = (v) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
-
-const getMarginValue = (marginStr, zoneRental) => {
-    if (!marginStr || typeof marginStr !== 'string' || !marginStr.includes("Z")) return marginStr || "";
-    const z = zoneRental ? zoneRental.toString() : "";
-    if (z === "2" && marginStr.includes("Z2:")) return marginStr.match(/Z2:([^|]+)/)?.[1] || marginStr;
-    if (z === "3" && marginStr.includes("Z3:")) return marginStr.match(/Z3:([^|]+)/)?.[1] || marginStr;
-    return marginStr.replace("Z2:", "Z2: ").replace("|Z3:", " | Z3: ");
-};
-
-// Normalisation pour éviter les erreurs d'accents (Pévèle vs Pevele)
-const getRefIdFromEpci = (epciName) => {
-    const n = (epciName || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
-    if (n.includes("lille") || n.includes("pevele")) return 'mel';
-    if (n.includes("dunkerque")) return 'cud';
-    if (n.includes("porte du hainaut")) return 'caph';
-    if (n.includes("douaisis") || n.includes("douai")) return 'cad';
-    if (n.includes("valenciennes") || n.includes("cavm")) return 'cavm';
-    if (n.includes("sambre") || n.includes("maubeuge")) return 'camvs';
-    return 'ddtm';
-};
-
-// --- SERVICES DB ---
-const getCommunesCollection = () => collection(db, ...PUBLIC_DATA_PATH); 
-const getRefsCollection = () => collection(db, ...REFS_DATA_PATH); 
-
-const fetchAllCommunes = async () => {
-  try { 
-      const snap = await getDocs(getCommunesCollection()); 
-      return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
-  } catch (error) { 
-      console.error("Erreur lecture DB:", error);
-      throw error; 
-  }
-};
-
-const fetchReferenceData = async (epciId) => {
-    try {
-        const refDoc = await getDoc(doc(db, ...REFS_DATA_PATH, epciId));
-        if (refDoc.exists()) return refDoc.data();
-        console.warn(`Référentiel manquant pour ID: ${epciId}`);
-        return null;
-    } catch (e) { 
-        console.error("Erreur fetch ref:", e);
-        return null; 
-    }
-};
-
-const saveCommuneToDb = async (commune) => {
-  try {
-    const docId = commune.insee;
-    const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
-    
-    const dataToSave = { ...commune };
-    if ('isApiSource' in dataToSave) delete dataToSave.isApiSource;
-    
-    await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
-    return true;
-  } catch (err) { return false; }
-};
-
-const deleteCommuneFromDb = async (insee) => {
-    try { 
-        await deleteDoc(doc(db, ...PUBLIC_DATA_PATH, insee)); return true; 
-    } catch { return false; }
-}
-
-const searchGeoApi = async (term) => {
-    if (term.length < 2) return [];
-    try {
-        const response = await fetch(`https://geo.api.gouv.fr/communes?codeDepartement=59&nom=${term}&fields=nom,code,population,epci&boost=population&limit=5`);
-        const data = await response.json();
-        return data.map((item) => {
-            const epciName = item.epci ? item.epci.nom : "Non renseigné";
-            let autoDT = "À définir";
-            const n = epciName.toLowerCase();
-            if (n.includes("lille") || n.includes("pévèle")) autoDT = "DDTM Métropole";
-            else if (n.includes("dunkerque") || n.includes("flandre")) autoDT = "Flandre Grand Littoral";
-            else if (n.includes("valenciennes") || n.includes("hainaut") || n.includes("douaisis") || n.includes("cambrai") || n.includes("sambre")) autoDT = "Hainaut - Douaisis - Cambrésis";
-            
-            return {
-                insee: item.code, name: item.nom, population: item.population, epci: epciName, directionTerritoriale: autoDT,
-                stats: { socialHousingRate: 0, targetRate: 20, deficit: false, exempt: false },
-                zoning: { accession: "C", rental: "3" }, // Défaut
-                isApiSource: true
-            };
-        });
-    } catch { return []; }
-};
-
-/**
- * ==========================================
- * 3. DONNÉES STATIQUES & SEED
- * ==========================================
- */
-const FULL_DB_59 = [
-  // --- DT FLANDRE GRAND LITTORAL ---
-  { insee: "59183", name: "Dunkerque", epci: "CU de Dunkerque", population: 86788, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 35.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59271", name: "Grande-Synthe", epci: "CU de Dunkerque", population: 20331, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 60.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59155", name: "Coudekerque-Branche", epci: "CU de Dunkerque", population: 20765, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 30.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59273", name: "Gravelines", epci: "CU de Dunkerque", population: 11223, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59123", name: "Bray-Dunes", epci: "CU de Dunkerque", population: 4380, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 12.5, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59668", name: "Zuydcoote", epci: "CU de Dunkerque", population: 1600, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 8.0, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59360", name: "Loon-Plage", epci: "CU de Dunkerque", population: 6039, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59588", name: "Téteghem-Coudekerque-Village", epci: "CU de Dunkerque", population: 8384, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 24.89, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59341", name: "Leffrinckoucke", epci: "CU de Dunkerque", population: 4124, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59098", name: "Bourbourg", epci: "CU de Dunkerque", population: 7023, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 25.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "C", rental: "3" } },
-  
-  // --- DT MÉTROPOLE (MEL) ---
-  { insee: "59350", name: "Lille", epci: "Métropole Européenne de Lille", population: 236710, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 24.5, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "A", rental: "1" } },
-  { insee: "59512", name: "Roubaix", epci: "Métropole Européenne de Lille", population: 98892, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 45.2, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B1", rental: "1" } },
-  { insee: "59599", name: "Tourcoing", epci: "Métropole Européenne de Lille", population: 99011, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 32.1, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B1", rental: "1" } },
-  { insee: "59648", name: "Villeneuve-d'Ascq", epci: "Métropole Européenne de Lille", population: 62067, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 42.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B1", rental: "1" } },
-  { insee: "59368", name: "Marcq-en-Barœul", epci: "Métropole Européenne de Lille", population: 39356, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 19.4, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "A", rental: "1" } },
-  
-  // --- DT HAINAUT - DOUAISIS - CAMBRÉSIS ---
-  { insee: "59526", name: "Saint-Amand-les-Eaux", epci: "CA de la Porte du Hainaut", population: 15980, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 25.5, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59606", name: "Valenciennes", epci: "CA Valenciennes Métropole", population: 42991, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59173", name: "Douai", epci: "Douaisis Agglo", population: 39648, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 32.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59392", name: "Maubeuge", epci: "CA Maubeuge Val de Sambre", population: 29066, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 40.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
-  { insee: "59122", name: "Cambrai", epci: "CA de Cambrai", population: 31425, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 22.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "C", rental: "3" } }
-];
-
-// 1. DDTM (Défaut)
 const DDTM_DEF = {
     id: 'ddtm', name: 'DDTM 59 (Droit Commun)', lastUpdated: '01/01/2024',
     subsidiesState: [{ type: "PLAI", amount: "13 500 €", condition: "/lgt" }, { type: "PLUS", amount: "5 400 €", condition: "/lgt" }],
@@ -183,7 +64,6 @@ const DDTM_DEF = {
     hasMargins: true, hasRents: true
 };
 
-// 2. MEL
 const MEL_DEF = {
     ...DDTM_DEF, id: 'mel', name: 'Métropole Européenne de Lille', lastUpdated: 'Juillet 2025',
     subsidiesState: [
@@ -251,7 +131,6 @@ const MEL_DEF = {
     hasMargins: false, hasRents: false, footnotes: ["* Mega bonus: conditions spécifiques (voir tableau)."]
 };
 
-// 3. CUD
 const CUD_DEF = {
     ...DDTM_DEF, id: 'cud', name: 'Communauté Urbaine de Dunkerque', lastUpdated: 'Juillet 2025',
     subsidiesState: [
@@ -319,7 +198,6 @@ const CUD_DEF = {
     hasMargins: true, hasRents: true, footnotes: ["* Mega bonus: opérations PLAI Adapté en AA, transformation tertiaire, ou AA > 5000€."]
 };
 
-// 4. CAPH
 const CAPH_DEF = { ...CUD_DEF, id: 'caph', name: "Porte du Hainaut (CAPH)",
     subsidiesState: CUD_DEF.subsidiesState,
     subsidiesEPCI: [
@@ -371,7 +249,6 @@ const CAPH_DEF = { ...CUD_DEF, id: 'caph', name: "Porte du Hainaut (CAPH)",
     ],
 };
 
-// 5. CAVM
 const CAVM_DEF = { ...CUD_DEF, id: 'cavm', name: "Valenciennes Métropole (CAVM)",
     subsidiesState: [
         { type: "PLAI - DC", amount: "6 452 €", condition: "/lgt" },
@@ -409,11 +286,10 @@ const CAVM_DEF = { ...CUD_DEF, id: 'cavm', name: "Valenciennes Métropole (CAVM)
         { type: "Locaux coll.", product: "PLUS", margin: "Formule" },
         { type: "Zone 3 Certifié", product: "PLUS", margin: "8%" }
     ],
-    accessoryRents: CAPH_DEF.accessoryRents, // Mêmes loyers que CAPH
+    accessoryRents: CAPH_DEF.accessoryRents,
     hasMargins: true, hasRents: true
 };
 
-// 6. CAD
 const CAD_DEF = { ...CUD_DEF, id: 'cad', name: "Douaisis Agglo (CAD)",
     subsidiesState: CUD_DEF.subsidiesState,
     subsidiesEPCI: [
@@ -456,7 +332,6 @@ const CAD_DEF = { ...CUD_DEF, id: 'cad', name: "Douaisis Agglo (CAD)",
     ],
 };
 
-// 7. CAMVS
 const CAMVS_DEF = { ...CUD_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMVS)",
     subsidiesState: CUD_DEF.subsidiesState,
     subsidiesEPCI: [{ type: "Aide", amount: "Variable", condition: "Selon délib" }],
@@ -478,8 +353,123 @@ const CAMVS_DEF = { ...CUD_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMV
 
 const ALL_REFS_DEF = [DDTM_DEF, MEL_DEF, CUD_DEF, CAPH_DEF, CAVM_DEF, CAD_DEF, CAMVS_DEF];
 
+const FULL_DB_59 = [
+  { insee: "59183", name: "Dunkerque", epci: "CU de Dunkerque", population: 86788, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 35.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59271", name: "Grande-Synthe", epci: "CU de Dunkerque", population: 20331, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 60.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59155", name: "Coudekerque-Branche", epci: "CU de Dunkerque", population: 20765, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 30.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59273", name: "Gravelines", epci: "CU de Dunkerque", population: 11223, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59123", name: "Bray-Dunes", epci: "CU de Dunkerque", population: 4380, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 12.5, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59668", name: "Zuydcoote", epci: "CU de Dunkerque", population: 1600, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 8.0, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59360", name: "Loon-Plage", epci: "CU de Dunkerque", population: 6039, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59588", name: "Téteghem-Coudekerque-Village", epci: "CU de Dunkerque", population: 8384, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 24.89, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59341", name: "Leffrinckoucke", epci: "CU de Dunkerque", population: 4124, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 25.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59098", name: "Bourbourg", epci: "CU de Dunkerque", population: 7023, directionTerritoriale: "Flandre Grand Littoral", stats: { socialHousingRate: 25.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "C", rental: "3" } },
+  { insee: "59350", name: "Lille", epci: "Métropole Européenne de Lille", population: 236710, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 24.5, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "A", rental: "1" } },
+  { insee: "59512", name: "Roubaix", epci: "Métropole Européenne de Lille", population: 98892, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 45.2, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B1", rental: "1" } },
+  { insee: "59599", name: "Tourcoing", epci: "Métropole Européenne de Lille", population: 99011, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 32.1, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B1", rental: "1" } },
+  { insee: "59648", name: "Villeneuve-d'Ascq", epci: "Métropole Européenne de Lille", population: 62067, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 42.0, targetRate: 25, deficit: false, exempt: false }, zoning: { accession: "B1", rental: "1" } },
+  { insee: "59368", name: "Marcq-en-Barœul", epci: "Métropole Européenne de Lille", population: 39356, directionTerritoriale: "DDTM Métropole", stats: { socialHousingRate: 19.4, targetRate: 25, deficit: true, exempt: false }, zoning: { accession: "A", rental: "1" } },
+  { insee: "59526", name: "Saint-Amand-les-Eaux", epci: "CA de la Porte du Hainaut", population: 15980, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 25.5, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59606", name: "Valenciennes", epci: "CA Valenciennes Métropole", population: 42991, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 28.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59173", name: "Douai", epci: "Douaisis Agglo", population: 39648, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 32.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59392", name: "Maubeuge", epci: "CA Maubeuge Val de Sambre", population: 29066, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 40.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "B2", rental: "2" } },
+  { insee: "59122", name: "Cambrai", epci: "CA de Cambrai", population: 31425, directionTerritoriale: "Hainaut - Douaisis - Cambrésis", stats: { socialHousingRate: 22.0, targetRate: 20, deficit: false, exempt: false }, zoning: { accession: "C", rental: "3" } }
+];
+
+/**
+ * ==========================================
+ * 3. SERVICES & LOGIQUE
+ * ==========================================
+ */
+
+const parseCurrency = (v) => { 
+    if(!v || typeof v !== 'string') return 0;
+    const m = v.match(/(\d+)/g); return m ? Math.max(...m.map(n => parseInt(n))) : 0; 
+};
+
+const formatCurrency = (v) => new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 }).format(v);
+
+const getMarginValue = (marginStr, zoneRental) => {
+    if (!marginStr || typeof marginStr !== 'string' || !marginStr.includes("Z")) return marginStr || "";
+    const z = zoneRental ? zoneRental.toString() : "";
+    if (z === "2" && marginStr.includes("Z2:")) return marginStr.match(/Z2:([^|]+)/)?.[1] || marginStr;
+    if (z === "3" && marginStr.includes("Z3:")) return marginStr.match(/Z3:([^|]+)/)?.[1] || marginStr;
+    return marginStr.replace("Z2:", "Z2: ").replace("|Z3:", " | Z3: ");
+};
+
+const getRefIdFromEpci = (epciName) => {
+    const n = (epciName || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, ""); 
+    if (n.includes("lille") || n.includes("pevele")) return 'mel';
+    if (n.includes("dunkerque")) return 'cud';
+    if (n.includes("porte du hainaut")) return 'caph';
+    if (n.includes("douaisis") || n.includes("douai")) return 'cad';
+    if (n.includes("valenciennes") || n.includes("cavm")) return 'cavm';
+    if (n.includes("sambre") || n.includes("maubeuge")) return 'camvs';
+    return 'ddtm';
+};
+
+const getCommunesCollection = () => collection(db, ...PUBLIC_DATA_PATH); 
+const getRefsCollection = () => collection(db, ...REFS_DATA_PATH); 
+
+const fetchAllCommunes = async () => {
+  try { 
+      const snap = await getDocs(getCommunesCollection()); 
+      return snap.docs.map(doc => ({ id: doc.id, ...doc.data() })); 
+  } catch (error) { 
+      console.warn("Mode hors ligne: Utilisation des données locales pour les communes.");
+      return FULL_DB_59;
+  }
+};
+
+const fetchReferenceData = async (epciId) => {
+    try {
+        const refDoc = await getDoc(doc(db, ...REFS_DATA_PATH, epciId));
+        if (refDoc.exists()) return refDoc.data();
+    } catch (e) { }
+    const local = ALL_REFS_DEF.find(r => r.id === epciId);
+    return local || null;
+};
+
+const saveCommuneToDb = async (commune) => {
+  try {
+    const docId = commune.insee;
+    const docRef = doc(db, ...PUBLIC_DATA_PATH, docId);
+    const dataToSave = { ...commune };
+    if ('isApiSource' in dataToSave) delete dataToSave.isApiSource;
+    await setDoc(docRef, { ...dataToSave, lastUpdated: new Date().toLocaleDateString('fr-FR') });
+    return true;
+  } catch (err) { return false; }
+};
+
+const deleteCommuneFromDb = async (insee) => {
+    try { 
+        await deleteDoc(doc(db, ...PUBLIC_DATA_PATH, insee)); return true; 
+    } catch { return false; }
+}
+
+const searchGeoApi = async (term) => {
+    if (term.length < 2) return [];
+    try {
+        const response = await fetch(`https://geo.api.gouv.fr/communes?codeDepartement=59&nom=${term}&fields=nom,code,population,epci&boost=population&limit=5`);
+        const data = await response.json();
+        return data.map((item) => {
+            const epciName = item.epci ? item.epci.nom : "Non renseigné";
+            let autoDT = "À définir";
+            const n = epciName.toLowerCase();
+            if (n.includes("lille") || n.includes("pévèle")) autoDT = "DDTM Métropole";
+            else if (n.includes("dunkerque") || n.includes("flandre")) autoDT = "Flandre Grand Littoral";
+            else if (n.includes("valenciennes") || n.includes("hainaut") || n.includes("douaisis") || n.includes("cambrai") || n.includes("sambre")) autoDT = "Hainaut - Douaisis - Cambrésis";
+            return {
+                insee: item.code, name: item.nom, population: item.population, epci: epciName, directionTerritoriale: autoDT,
+                stats: { socialHousingRate: 0, targetRate: 20, deficit: false, exempt: false },
+                zoning: { accession: "C", rental: "3" }, 
+                isApiSource: true
+            };
+        });
+    } catch { return []; }
+};
+
 const seedDatabase = async () => {
-    // Si la DB échoue, on ne plante pas l'app, on retourne false
     try {
         const commSnap = await getDocs(getCommunesCollection());
         if (commSnap.empty) {
@@ -489,21 +479,23 @@ const seedDatabase = async () => {
             });
             await batch.commit();
         }
-        
-        // FORCER LA MISE À JOUR DES RÉFÉRENCES (INFO EPCI)
-        // On écrase les données existantes avec celles du code pour être sûr d'avoir la version complète
         const batchRefs = writeBatch(db);
         ALL_REFS_DEF.forEach((r) => { 
             batchRefs.set(doc(db, ...REFS_DATA_PATH, r.id), r, { merge: true });
         });
         await batchRefs.commit();
-        
         return true;
     } catch (e) {
-        console.error("Seed Failed", e);
-        throw e;
+        console.warn("Mode Lecture Seule (Impossible d'écrire en DB):", e.message);
+        return false;
     }
 };
+
+/**
+ * ==========================================
+ * 4. COMPOSANTS (UI)
+ * ==========================================
+ */
 
 const AdminCommuneEditor = ({ onClose, initialData }) => {
   const [communes, setCommunes] = useState(initialData);
@@ -670,11 +662,45 @@ const AdminLogin = ({ onLogin, onLogout, isAdmin }) => {
   );
 };
 
-/**
- * ==========================================
- * 4. DASHBOARD COMPONENT
- * ==========================================
- */
+// --- HELPER COMPONENT POUR LES CARTES D'AIDES ---
+const AidCard = ({ title, icon: Icon, color, data }) => {
+    if (!data || data.length === 0) return null;
+    
+    // Définitions de couleurs pour les thèmes
+    const themes = {
+        yellow: { border: 'border-yellow-200', bg: 'bg-yellow-50', text: 'text-yellow-800', badge: 'bg-yellow-100 text-yellow-700', amount: 'text-yellow-900' },
+        green: { border: 'border-emerald-200', bg: 'bg-emerald-50', text: 'text-emerald-800', badge: 'bg-emerald-100 text-emerald-700', amount: 'text-emerald-900' },
+        blue: { border: 'border-blue-200', bg: 'bg-blue-50', text: 'text-blue-800', badge: 'bg-blue-100 text-blue-700', amount: 'text-blue-900' },
+        red: { border: 'border-rose-200', bg: 'bg-rose-50', text: 'text-rose-800', badge: 'bg-rose-100 text-rose-700', amount: 'text-rose-900' }
+    };
+    
+    const t = themes[color] || themes.yellow;
+
+    return (
+        <div className={`rounded-xl border ${t.border} bg-white overflow-hidden shadow-sm h-full`}>
+            <div className={`px-4 py-3 ${t.bg} border-b ${t.border} flex items-center gap-2`}>
+                <Icon className={`w-4 h-4 ${t.text}`} />
+                <h4 className={`font-bold text-sm ${t.text} uppercase tracking-wide`}>{title}</h4>
+            </div>
+            <div className="divide-y divide-slate-100">
+                {data.map((item, idx) => (
+                    <div key={idx} className="p-3 hover:bg-slate-50 transition-colors">
+                        <div className="flex justify-between items-start mb-1">
+                            <span className="font-bold text-slate-700 text-sm">{item.type}</span>
+                            <span className={`font-mono font-bold ${t.amount} text-sm`}>{item.amount}</span>
+                        </div>
+                        {item.condition && (
+                            <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide ${t.badge}`}>
+                                {item.condition}
+                            </span>
+                        )}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
 const Dashboard = ({ data, isAdmin }) => {
     const [refData, setRefData] = useState(null);
     const [loadingRef, setLoadingRef] = useState(true);
@@ -715,11 +741,11 @@ const Dashboard = ({ data, isAdmin }) => {
 
                 {/* Second Row: Zonage (En haut, prominent) */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 border-t border-slate-100 pt-4">
-                    <div className="bg-purple-50 p-3 rounded-xl flex items-center justify-between border border-purple-100">
+                    <div className="bg-purple-50 p-3 rounded-xl flex items-center justify-between border border-purple-100 shadow-sm">
                         <div className="text-sm text-purple-900 font-medium">Zone Locative</div>
                         <div className="text-2xl font-bold text-purple-700">{data.zoning.rental}</div>
                     </div>
-                    <div className="bg-blue-50 p-3 rounded-xl flex items-center justify-between border border-blue-100">
+                    <div className="bg-blue-50 p-3 rounded-xl flex items-center justify-between border border-blue-100 shadow-sm">
                         <div className="text-sm text-blue-900 font-medium">Zone Accession</div>
                         <div className="text-2xl font-bold text-blue-700">{data.zoning.accession}</div>
                     </div>
@@ -739,7 +765,7 @@ const Dashboard = ({ data, isAdmin }) => {
                             <div className="relative w-40 h-20 overflow-hidden">
                                 <div className="absolute top-0 left-0 w-full h-full bg-slate-100 rounded-t-full"></div>
                                 <div 
-                                    className={`absolute top-0 left-0 w-full h-full rounded-t-full transition-all duration-1000 origin-bottom ${data.stats.socialHousingRate >= data.stats.targetRate ? 'bg-green-500' : 'bg-orange-500'}`}
+                                    className={`absolute top-0 left-0 w-full h-full rounded-t-full transition-all duration-1000 origin-bottom ${data.stats.socialHousingRate >= data.stats.targetRate ? 'bg-emerald-500' : 'bg-amber-500'}`}
                                     style={{ transform: `rotate(${(Math.min(data.stats.socialHousingRate / 40, 1) * 180) - 180}deg)` }}
                                 ></div>
                             </div>
@@ -754,7 +780,7 @@ const Dashboard = ({ data, isAdmin }) => {
                             </div>
                             <div className="flex justify-between items-center text-sm border-b border-slate-50 pb-2">
                                 <span className="text-slate-500">Statut Carence</span>
-                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${data.stats.deficit ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'}`}>
+                                <span className={`px-2 py-0.5 rounded text-xs font-bold ${data.stats.deficit ? 'bg-red-100 text-red-600' : 'bg-emerald-100 text-emerald-600'}`}>
                                     {data.stats.deficit ? 'Déficitaire' : 'Conforme'}
                                 </span>
                             </div>
@@ -770,105 +796,52 @@ const Dashboard = ({ data, isAdmin }) => {
                         </div>
                     ) : refData ? (
                         <>
-                            <div className="bg-slate-800 text-white rounded-2xl p-6 shadow-sm">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h3 className="font-bold text-lg flex items-center gap-2">
-                                        <Landmark size={20} className="text-yellow-400"/> Cadre de Financement : {refData.name}
-                                    </h3>
-                                    <span className="text-xs text-slate-400 bg-slate-900 px-2 py-1 rounded">MàJ: {refData.lastUpdated}</span>
-                                </div>
-                                
-                                {/* DISPLAY ALL AIDS (Grid Layout for density) */}
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-                                    {/* Aides État - Full List */}
-                                    <div className="bg-white/10 p-4 rounded-xl">
-                                        <h4 className="font-bold text-yellow-400 mb-2 border-b border-white/10 pb-2">Aides État</h4>
-                                        <ul className="space-y-2 max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600">
-                                            {refData.subsidiesState?.map((s, i) => (
-                                                <li key={i} className="flex justify-between items-baseline border-b border-white/5 pb-1 last:border-0">
-                                                    <span className="text-xs">{s.type}</span>
-                                                    <span className="font-mono text-yellow-100">{s.amount}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-
-                                    {/* Aides EPCI - Full List */}
-                                    <div className="bg-white/10 p-4 rounded-xl">
-                                        <h4 className="font-bold text-green-400 mb-2 border-b border-white/10 pb-2">Aides EPCI</h4>
-                                        <ul className="space-y-2 max-h-64 overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-slate-600">
-                                            {refData.subsidiesEPCI?.map((s, i) => (
-                                                <li key={i} className="flex justify-between items-baseline border-b border-white/5 pb-1 last:border-0">
-                                                    <span className="text-xs">{s.type}</span>
-                                                    <span className="font-mono text-green-100">{s.amount}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-
-                                    {/* Aides CD (Département) */}
-                                    {refData.subsidiesCD && refData.subsidiesCD.length > 0 && (
-                                        <div className="bg-white/10 p-4 rounded-xl md:col-span-1">
-                                            <h4 className="font-bold text-blue-300 mb-2 border-b border-white/10 pb-2">Aides Département (CD59)</h4>
-                                            <ul className="space-y-2">
-                                                {refData.subsidiesCD.map((s, i) => (
-                                                    <li key={i} className="flex justify-between items-baseline border-b border-white/5 pb-1 last:border-0">
-                                                        <span className="text-xs">{s.type}</span>
-                                                        <span className="font-mono text-blue-100">{s.amount}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
-
-                                    {/* Aides ANRU/NPNRU */}
-                                    {refData.subsidiesNPNRU && refData.subsidiesNPNRU.length > 0 && (
-                                        <div className="bg-white/10 p-4 rounded-xl md:col-span-1">
-                                            <h4 className="font-bold text-red-300 mb-2 border-b border-white/10 pb-2">Aides ANRU</h4>
-                                            <ul className="space-y-2">
-                                                {refData.subsidiesNPNRU.map((s, i) => (
-                                                    <li key={i} className="flex justify-between items-baseline border-b border-white/5 pb-1 last:border-0">
-                                                        <span className="text-xs">{s.type}</span>
-                                                        <span className="font-mono text-red-100">{s.amount}</span>
-                                                    </li>
-                                                ))}
-                                            </ul>
-                                        </div>
-                                    )}
-                                </div>
+                            {/* --- NOUVELLE GRILLE D'AIDES --- */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <AidCard title="Aides État" icon={Landmark} color="yellow" data={refData.subsidiesState} />
+                                <AidCard title="Aides EPCI" icon={Building2} color="green" data={refData.subsidiesEPCI} />
+                                <AidCard title="Département" icon={MapPin} color="blue" data={refData.subsidiesCD} />
+                                <AidCard title="ANRU / NPNRU" icon={Home} color="red" data={refData.subsidiesNPNRU} />
                             </div>
 
                             {/* Detailed Tables */}
                             <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-                                <div className="bg-gray-50 px-6 py-3 border-b border-gray-100 flex items-center gap-2 font-semibold text-gray-700">
-                                    <Euro size={16}/> Marges & Loyers Accessoires
+                                <div className="bg-slate-50 px-6 py-4 border-b border-slate-200 flex items-center gap-2 font-bold text-slate-700">
+                                    <Euro size={18}/> Marges & Loyers Accessoires
                                 </div>
-                                <div className="p-6">
+                                <div className="p-0">
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-sm text-left">
-                                            <thead className="text-xs text-gray-400 uppercase bg-gray-50">
+                                            <thead className="text-xs text-slate-500 uppercase bg-slate-100 border-b border-slate-200">
                                                 <tr>
-                                                    <th className="px-4 py-2">Type</th>
-                                                    <th className="px-4 py-2">Produit</th>
-                                                    <th className="px-4 py-2 text-right">Valeur</th>
+                                                    <th className="px-6 py-3 font-semibold">Type</th>
+                                                    <th className="px-6 py-3 font-semibold">Produit</th>
+                                                    <th className="px-6 py-3 font-semibold text-right">Valeur</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-gray-100">
+                                            <tbody className="divide-y divide-slate-100">
                                                 {refData.marginsRE2020?.map((m, i) => (
-                                                    <tr key={`re-${i}`}>
-                                                        <td className="px-4 py-2 font-medium">{m.type}</td>
-                                                        <td className="px-4 py-2 text-gray-500">{m.product}</td>
-                                                        <td className="px-4 py-2 text-right font-mono text-blue-600">
+                                                    <tr key={`re-${i}`} className="hover:bg-slate-50 transition-colors even:bg-slate-50/30">
+                                                        <td className="px-6 py-3 font-medium text-slate-700">{m.type}</td>
+                                                        <td className="px-6 py-3 text-slate-500">
+                                                            <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs">{m.product}</span>
+                                                        </td>
+                                                        <td className="px-6 py-3 text-right font-mono text-blue-600 font-bold">
                                                             {getMarginValue(m.margin, data.zoning.rental)}
                                                         </td>
                                                     </tr>
                                                 ))}
                                                 {refData.accessoryRents?.map((r, i) => (
-                                                    <tr key={`rent-${i}`} className="bg-slate-50/50">
-                                                        <td className="px-4 py-2 font-medium">{r.type}</td>
-                                                        <td className="px-4 py-2 text-gray-500">{r.product}</td>
-                                                        <td className="px-4 py-2 text-right font-mono text-green-600">
-                                                            {r.maxRent} <span className="text-xs text-gray-400">({r.condition})</span>
+                                                    <tr key={`rent-${i}`} className="hover:bg-slate-50 transition-colors even:bg-slate-50/30">
+                                                        <td className="px-6 py-3 font-medium text-slate-700">{r.type}</td>
+                                                        <td className="px-6 py-3 text-slate-500">
+                                                            <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs">{r.product}</span>
+                                                        </td>
+                                                        <td className="px-6 py-3 text-right">
+                                                            <div className="flex flex-col items-end">
+                                                                <span className="font-mono text-emerald-600 font-bold">{r.maxRent}</span>
+                                                                {r.condition && <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 mt-1">{r.condition}</span>}
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -909,11 +882,7 @@ const App = () => {
   useEffect(() => {
     const initAuth = async () => {
       try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
+        await signInAnonymously(auth);
       } catch (error) {
         console.error("Auth Failed:", error);
         setDbError(`Erreur d'authentification : ${error.code} - ${error.message}`);
@@ -935,10 +904,8 @@ const App = () => {
                 }
             })
             .catch(err => {
-                console.error("DB Error:", err);
-                let msg = err.message || "Erreur inconnue";
-                if(err.code === 'permission-denied') msg = "Permissions insuffisantes (Vérifiez les règles Firestore)";
-                setDbError(msg);
+                // Ignore DB errors on init, rely on local fallback
+                console.warn("DB init issues, running in offline/hybrid mode.");
             });
       }
   }, [user]);
@@ -951,7 +918,6 @@ const App = () => {
         
         let apiRes = [];
         try {
-           // Only call API if connected
            if (navigator.onLine) apiRes = await searchGeoApi(searchTerm);
         } catch (e) {
            console.warn("API Gouv unavailable", e);
