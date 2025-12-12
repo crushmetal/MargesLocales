@@ -52,7 +52,6 @@ const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
  */
 
 // Corrections manuelles COMPLÈTES (Avec Population ajoutée)
-// Ces données sont chargées instantanément sans attendre le réseau
 const MANUAL_OVERRIDES = [
   // VALENCIENNOIS (CAVM / CAPH)
   { insee: "59221", name: "Famars", population: 2500, epci: "CA Valenciennes Métropole", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 0, targetRate: 20, deficit: false } },
@@ -169,8 +168,8 @@ const MEL_DEF = {
     ],
     accessoryRents: [
         { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Garage", product: "PLUS", maxRent: "32 €", condition: "" },
-        { type: "Garage", product: "PLS", maxRent: "32 €", condition: "" },
+        { type: "Garage", product: "PLUS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
+        { type: "Garage", product: "PLS", maxRent: "39€ (Boxé)", condition: "30€ (Non)" },
         { type: "Carport", product: "PLAI", maxRent: "0 €", condition: "" },
         { type: "Carport", product: "PLUS", maxRent: "16 €", condition: "" },
         { type: "Carport", product: "PLS", maxRent: "16 €", condition: "" },
