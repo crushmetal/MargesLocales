@@ -51,7 +51,7 @@ const ViewState = { HOME: 'HOME', RESULT: 'RESULT', ERROR: 'ERROR' };
  * ==========================================
  */
 
-// Corrections manuelles COMPLÈTES (Noms DT simplifiés : "Hainaut - Douaisis - Cambrésis", "Métropole", etc.)
+// Corrections manuelles COMPLÈTES (Noms DT simplifiés)
 const MANUAL_OVERRIDES = [
   // VALENCIENNOIS (CAVM / CAPH)
   { insee: "59221", name: "Famars", population: 2500, epci: "CA Valenciennes Métropole", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 10.6, targetRate: 20, deficit: true } },
@@ -81,26 +81,32 @@ const MANUAL_OVERRIDES = [
   
   // AUTRES (DOUAISIS / SAMBRE / CAMBRAI)
   { insee: "59173", name: "Douai", population: 39000, epci: "Douaisis Agglo", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 32.0, targetRate: 20, deficit: false } },
-  { insee: "59654", name: "Waziers", population: 7400, epci: "Douaisis Agglo", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: null }, // Ajout Waziers sans stats inventées
   { insee: "59392", name: "Maubeuge", population: 29000, epci: "CA Maubeuge Val de Sambre", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 40.0, targetRate: 20, deficit: false } },
   { insee: "59122", name: "Cambrai", population: 31000, epci: "CA de Cambrai", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "C", rental: "3" }, stats: { socialHousingRate: 22.0, targetRate: 20, deficit: false } },
   { insee: "59225", name: "Feignies", population: 6800, epci: "CA Maubeuge Val de Sambre", directionTerritoriale: "Hainaut - Douaisis - Cambrésis", zoning: { accession: "B2", rental: "2" }, stats: { socialHousingRate: 17.0, targetRate: 20, deficit: false } }
 ];
 
-// Référentiels Financiers
+// Référentiels Financiers (Liés à l'EPCI)
 const DDTM_DEF = {
-    id: 'ddtm', name: 'DDTM 59 (Droit Commun)', lastUpdated: '01/01/2024',
-    subsidiesState: [{ type: "PLAI", amount: "13 500 €", condition: "/lgt" }, { type: "PLUS", amount: "5 400 €", condition: "/lgt" }],
-    subsidiesCD: [{ type: "CD PLAI", amount: "4 000 €", condition: "Forfait" }, { type: "CD PLUS", amount: "2 000 €", condition: "Forfait" }],
-    subsidiesNPNRU: [{ type: "ANRU", amount: "Variable", condition: "Selon conv." }],
+    id: 'ddtm', name: 'DDTM 59 (Droit Commun / Hors Délégation)', lastUpdated: '01/01/2024',
+    subsidiesState: [
+        { type: "PLAI", amount: "13 500 €", condition: "Par logement (Socle de base)" },
+        { type: "PLUS", amount: "5 400 €", condition: "Par logement (Socle de base)" },
+        { type: "PLAI Adapté", amount: "Variable", condition: "Selon instruction spécifique DDTM" },
+        { type: "Surcharge Foncière", amount: "Selon déficit", condition: "Plafond selon zone (B1/B2/C) et ACM" }
+    ],
+    subsidiesCD: [
+        { type: "CD PLAI", amount: "4 000 €", condition: "Forfaitaire par logement" },
+        { type: "CD PLUS", amount: "2 000 €", condition: "Forfaitaire par logement" },
+        { type: "CD Habitat Inclusif", amount: "Sur dossier", condition: "Appel à projet spécifique" }
+    ],
+    subsidiesNPNRU: [{ type: "ANRU", amount: "Variable €", condition: "Selon convention de renouvellement urbain" }],
     marginsRE2020: [{ type: "Marge", product: "Tous", margin: "Selon perf" }],
     marginsDivers: [{ type: "Marge", product: "Tous", margin: "Selon perf" }],
-    accessoryRents: [{ type: "Garage", product: "Annexes", maxRent: "60.45 €", condition: "Zone B1/B2" }],
+    accessoryRents: [{ type: "Garage", product: "Annexes", maxRent: "60.45 €", condition: "Zone B1/B2 (Valeur 2024)" }],
+    footnotes: ["Document de référence interne."],
     hasMargins: true, hasRents: true
 };
-
-// ... MEL_DEF, CUD_DEF, CAPH_DEF, CAVM_DEF, CAMVS_DEF (identiques à avant pour économiser de la place, sauf corrections noms si besoin)
-// Je remets les définitions complètes pour être sûr
 
 const MEL_DEF = {
     ...DDTM_DEF, id: 'mel', name: 'Métropole Européenne de Lille (MEL)', lastUpdated: 'Juillet 2025',
@@ -244,9 +250,94 @@ const CAVM_DEF = { ...CUD_DEF, id: 'cavm', name: "Valenciennes Métropole (CAVM)
     hasMargins: true, hasRents: true
 };
 
+const CAD_DEF = { 
+    id: 'cad', name: "Communauté d'Agglomération du Douaisis (CAD)", lastUpdated: 'Juillet 2025',
+    subsidiesState: [
+        { type: "PLAI - Droit Commun", amount: "6 452 €", condition: "Par logement" },
+        { type: "PLAI Adapté (Ordinaire)", amount: "16 480 €", condition: "1 à 3 lgts" },
+        { type: "PLAI Adapté (Structure)", amount: "8 980 €", condition: "En structure" },
+        { type: "PLAI - AA", amount: "16 000 €", condition: "Super bonus" },
+        { type: "PLUS - AA", amount: "20 000 €", condition: "Mega bonus*" },
+        { type: "Pension/RS", amount: "7 500 €", condition: "Supplément PLAI Adapté" }
+    ],
+    subsidiesEPCI: [
+        { type: "PLAI", amount: "3 000 €", condition: "Par logement" },
+        { type: "PLAI (Petits)", amount: "+ 5 000 €", condition: "Studio, T1, T2" },
+        { type: "PLAI (GDV)", amount: "+ 5 000 €", condition: "Gens du Voyage" },
+        { type: "PLAI Adapté", amount: "5 000 €", condition: "Cumulable PLAI" },
+        { type: "PLUS", amount: "3 000 €", condition: "Maing et Hergnies uniquement" },
+        { type: "PLAI AA", amount: "5 000 €", condition: "Cumulable PLAI" },
+        { type: "PSLA", amount: "5 000 €", condition: "PV max 2 000 €/m²" },
+        { type: "Accession maitrisée", amount: "5 000 €", condition: "PV max 2 250 €/m²" },
+        { type: "Habitat inclusif", amount: "1 000 €", condition: "Aide EPCI (+ aide CD)" }
+    ],
+    subsidiesNPNRU: [
+        { type: "Subvention PLAI", amount: "6 300 + 1 500 €", condition: "Doublé si AA" },
+        { type: "Prêt PLAI", amount: "7 900 + 1 900 €", condition: "Doublé si AA" },
+        { type: "Prêt PLUS", amount: "6 700 + 5 600 €", condition: "Doublé si AA" }
+    ],
+    subsidiesCD: [
+        { type: "CD PLAI", amount: "27 000 €", condition: "Forfaitaire" },
+        { type: "CD PLAI Adapté", amount: "33 250 €", condition: "Toutes zones" },
+        { type: "CD PLUS", amount: "18 000 €", condition: "Forfaitaire" },
+        { type: "CD PLS", amount: "4 000 €", condition: "Forfaitaire" }
+    ],
+    marginsRE2020: [
+        { type: "RE 2020 Base", product: "PLUS", margin: "0%" },
+        { type: "Cep-10%", product: "PLUS", margin: "3%" },
+        { type: "Energie positive", product: "PLUS", margin: "7%" },
+        { type: "RO NPNRU - Base", product: "PLUS", margin: "0%" },
+        { type: "Cep nr / Bbio -10%", product: "PLUS", margin: "5%" },
+        { type: "Cep nr / Bbio -20%", product: "PLUS", margin: "7%" },
+        { type: "Passif", product: "PLUS", margin: "7%" }
+    ],
+    marginsDivers: [
+        { type: "NF Habitat HQE", product: "PLUS", margin: "4%" },
+        { type: "Zone 3 > RT2012", product: "PLUS", margin: "+ 1%" },
+        { type: "Ascenseur < R+3", product: "PLUS", margin: "Formule" },
+        { type: "BBC Rénov 2025", product: "PLAI/PLUS", margin: "3% - 7%" }
+    ],
+    accessoryRents: [
+        { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Garage", product: "PLUS/PLS", maxRent: "32 €", condition: "" },
+        { type: "Carport", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Carport", product: "PLUS/PLS", maxRent: "16 €", condition: "" },
+        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Stationnement", product: "PLUS/PLS", maxRent: "16 €", condition: "" }
+    ],
+    accessoryRentsRO: [
+        { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Garage", product: "PLUS", maxRent: "32 €", condition: "" },
+        { type: "Garage", product: "PLS", maxRent: "32 €", condition: "" },
+        { type: "Carport", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Carport", product: "PLUS", maxRent: "25 €", condition: "" },
+        { type: "Carport", product: "PLS", maxRent: "25 €", condition: "" },
+        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
+        { type: "Stationnement", product: "PLUS", maxRent: "16 €", condition: "" },
+        { type: "Stationnement", product: "PLS", maxRent: "16 €", condition: "" }
+    ],
+    hasMargins: true, hasRents: true
+};
+
 const CAMVS_DEF = { ...CUD_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMVS)",
     subsidiesState: DDTM_DEF.subsidiesState,
-    subsidiesEPCI: [{ type: "Aide", amount: "Variable", condition: "Selon délibération en vigueur." }],
+    subsidiesEPCI: [
+        { type: "PLAI Neuf", amount: "3 000 €", condition: "Par logement PLAI." },
+        { type: "PLUS Neuf", amount: "1 500 €", condition: "Par logement PLUS." },
+        { type: "Acquisition-Amél.", amount: "5 000 €", condition: "Par logement en centre-ville." },
+        { type: "Démolition", amount: "50%", condition: "Reste à charge bailleur." }
+    ],
+    subsidiesNPNRU: [
+        { type: "Subv. PLAI", amount: "6 300 + 1 500 €", condition: "Doublé si Acquisition-Amélioration." },
+        { type: "Prêt PLAI", amount: "7 900 + 1 900 €", condition: "Doublé si Acquisition-Amélioration." },
+        { type: "Prêt PLUS", amount: "6 700 + 5 600 €", condition: "Doublé si Acquisition-Amélioration." }
+    ],
+    subsidiesCD: [
+        { type: "CD PLAI", amount: "27 000 €", condition: "Forfaitaire (Toutes zones)." },
+        { type: "CD PLAI Adapté", amount: "33 250 €", condition: "Forfaitaire (Toutes zones)." },
+        { type: "CD PLUS", amount: "18 000 €", condition: "Forfaitaire (Toutes zones)." },
+        { type: "CD PLS", amount: "4 000 €", condition: "Forfaitaire (Toutes zones)." }
+    ],
     marginsRE2020: [
         { type: "RE2020 Base", product: "PLUS", margin: "0%" },
         { type: "Bbio -10%", product: "PLUS", margin: "6%" },
@@ -259,90 +350,6 @@ const CAMVS_DEF = { ...CUD_DEF, id: 'camvs', name: "Maubeuge Val de Sambre (CAMV
     accessoryRents: [
         { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "Gratuité" },
         { type: "Garage", product: "PLUS", maxRent: "60.45 €", condition: "Plafond Zone B2" }
-    ],
-    hasMargins: true, hasRents: true
-};
-
-// --- DOUAISIS AGGLO (CAD) - STRICTEMENT CONFORME AU TABLEAU ---
-const CAD_DEF = { 
-    id: 'cad', name: "Communauté d'Agglomération du Douaisis (CAD)", lastUpdated: 'Juillet 2025',
-    subsidiesState: [
-        { type: "PLAI - Droit Commun", amount: "6 452 €", condition: "Par logement" },
-        { type: "PLAI Adapté", amount: "16 480 €", condition: "Ordinaire - 1 à 3 lgts" },
-        { type: "PLAI Adapté (Structure)", amount: "8 980 €", condition: "En structure" },
-        { type: "PLAI - AA", amount: "16 000 €", condition: "Super bonus" },
-        { type: "PLUS - AA", amount: "20 000 €", condition: "Mega bonus*" },
-        { type: "Pension de familles / RS", amount: "7 500 €", condition: "Subvention supplémentaire au PLAI Adapté Structure" }
-    ],
-    subsidiesEPCI: [
-        { type: "PLAI", amount: "3 000 €", condition: "Par logement" },
-        { type: "PLAI (Petits)", amount: "+ 5 000 €", condition: "Petites typologies (Studio, T1, T2)" },
-        { type: "PLAI (GDV)", amount: "+ 5 000 €", condition: "Adapté au Gens du Voyage" },
-        { type: "PLAI Adapté", amount: "5 000 €", condition: "Peut être couplé aux aides PLAI" },
-        { type: "PLUS", amount: "3 000 €", condition: "Logement neuf pour Maing et Hergnies" },
-        { type: "PLAI AA", amount: "5 000 €", condition: "Peut être couplé aux aides PLAI" },
-        { type: "PSLA", amount: "5 000 €", condition: "PV max 2 000 €/m² TTC" },
-        { type: "Accession maitrisé", amount: "5 000 €", condition: "PV max 2 250 €/m² TTC - Contrat avec clause anti-spéculation" },
-        { type: "Autre 1 - Habitat inclusif", amount: "1 000 €", condition: "Aide du CD" },
-        { type: "Autre 1 - Habitat inclusif (EPCI)", amount: "1 000 €", condition: "Aide EPCI en plus de l'aide du CD" }
-    ],
-    subsidiesNPNRU: [
-        { type: "Subvention PLAI", amount: "6 300 €/lgt + 1 500 €/lgt", condition: "Si AA - Subvention doublé" },
-        { type: "Prêt bonifié PLAI", amount: "7 900 €/lgt + 1 900 €/lgt", condition: "Si AA - Subvention doublé" },
-        { type: "Prêt bonifié PLUS", amount: "6 700 €/lgt + 5 600 €/lgt", condition: "Si AA - Subvention doublé" }
-    ],
-    subsidiesCD: [
-        { type: "CD PLAI", amount: "27 000 €", condition: "Par logement" },
-        { type: "CD PLAI Adapté", amount: "33 250 €", condition: "Fonctionne sur toutes les zones" },
-        { type: "CD PLUS", amount: "18 000 €", condition: "Par logement" },
-        { type: "CD PLS", amount: "4 000 €", condition: "Par logement" }
-    ],
-    marginsRE2020: [
-        { type: "RE 2020 Base", product: "PLUS", margin: "0%" },
-        { type: "Cep-10%", product: "PLUS", margin: "3%" },
-        { type: "Energie positive", product: "PLUS", margin: "7%" },
-        { type: "RE 2020 - RO NPNRU - Base", product: "PLUS", margin: "0%" },
-        { type: "Cep nr et/ou Bbio -10%", product: "PLUS", margin: "5%" },
-        { type: "Cep nr et/ou Bbio -20%", product: "PLUS", margin: "7%" },
-        { type: "Passif", product: "PLUS", margin: "7%" },
-        { type: "Energie positive", product: "PLUS", margin: "7%" },
-        { type: "Récupération eaux de pluie...", product: "PLUS", margin: "3%" }
-    ],
-    marginsDivers: [
-        { type: "BBC rénovation 2025 1ère étape", product: "PLAI/PLUS", margin: "4%" },
-        { type: "BBC rénovation 2025", product: "PLAI/PLUS", margin: "7%" },
-        { type: "Asc. Bât col < R+3", product: "PLUS", margin: "Formule" },
-        { type: "Locaux collectifs résidentiels", product: "PLUS", margin: "Formule" },
-        { type: "NF Habitat HQE ou Prestaterre BEE+ (a)", product: "", margin: "4%" },
-        { type: "Contexte local Zone 3 si RT>RT2012-10%...", product: "PLUS", margin: "+ 1%" },
-        { type: "BBC rénovation 2025 1ère étape", product: "PLAI", margin: "3%" },
-        { type: "BBC rénovation 2025", product: "PLAI", margin: "6%" },
-        { type: "BBC rénovation 2025 - Zone 3", product: "PLAI", margin: "+ 1%" },
-        { type: "BBC rénovation 2025 1ère étape", product: "PLUS", margin: "2%" },
-        { type: "BBC rénovation 2025", product: "PLUS", margin: "4%" },
-        { type: "BBC rénovation 2025 - Zone 3", product: "PLUS", margin: "+ 1%" }
-    ],
-    accessoryRents: [
-        { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Garage", product: "PLUS", maxRent: "32 €", condition: "" },
-        { type: "Garage", product: "PLS", maxRent: "32 €", condition: "" },
-        { type: "Carport", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Carport", product: "PLUS", maxRent: "16 €", condition: "" },
-        { type: "Carport", product: "PLS", maxRent: "16 €", condition: "" },
-        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Stationnement", product: "PLUS", maxRent: "16 €", condition: "" },
-        { type: "Stationnement", product: "PLS", maxRent: "16 €", condition: "" }
-    ],
-    accessoryRentsRO: [
-        { type: "Garage", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Garage", product: "PLUS", maxRent: "32 €", condition: "" },
-        { type: "Garage", product: "PLS", maxRent: "32 €", condition: "" },
-        { type: "Carport", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Carport", product: "PLUS", maxRent: "25 €", condition: "" },
-        { type: "Carport", product: "PLS", maxRent: "25 €", condition: "" },
-        { type: "Stationnement", product: "PLAI", maxRent: "0 €", condition: "" },
-        { type: "Stationnement", product: "PLUS", maxRent: "16 €", condition: "" },
-        { type: "Stationnement", product: "PLS", maxRent: "16 €", condition: "" }
     ],
     hasMargins: true, hasRents: true
 };
@@ -894,17 +901,6 @@ const Dashboard = ({ data, isAdmin }) => {
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
-                                                {refData.marginsRE2020?.map((m, i) => (
-                                                    <tr key={`re-${i}`} className="hover:bg-slate-50 transition-colors even:bg-slate-50/30">
-                                                        <td className="px-6 py-3 font-medium text-slate-700">{m.type}</td>
-                                                        <td className="px-6 py-3 text-slate-500">
-                                                            <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs">{m.product}</span>
-                                                        </td>
-                                                        <td className="px-6 py-3 text-right font-mono text-blue-600 font-bold">
-                                                            {getMarginValue(m.margin, data.zoning?.rental)}
-                                                        </td>
-                                                    </tr>
-                                                ))}
                                                 {refData.accessoryRents?.map((r, i) => (
                                                     <tr key={`rent-${i}`} className="hover:bg-slate-50 transition-colors even:bg-slate-50/30">
                                                         <td className="px-6 py-3 font-medium text-slate-700">{r.type}</td>
@@ -937,6 +933,17 @@ const Dashboard = ({ data, isAdmin }) => {
                                                                 <span className="font-mono text-emerald-600 font-bold">{r.maxRent}</span>
                                                                 {r.condition && <span className="text-[10px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 mt-1">{r.condition}</span>}
                                                             </div>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                                {refData.marginsRE2020?.map((m, i) => (
+                                                    <tr key={`re-${i}`} className="hover:bg-slate-50 transition-colors even:bg-slate-50/30">
+                                                        <td className="px-6 py-3 font-medium text-slate-700">{m.type}</td>
+                                                        <td className="px-6 py-3 text-slate-500">
+                                                            <span className="bg-slate-100 text-slate-600 px-2 py-0.5 rounded text-xs">{m.product}</span>
+                                                        </td>
+                                                        <td className="px-6 py-3 text-right font-mono text-blue-600 font-bold">
+                                                            {getMarginValue(m.margin, data.zoning?.rental)}
                                                         </td>
                                                     </tr>
                                                 ))}
@@ -1039,4 +1046,87 @@ const App = () => {
             <span className="text-gray-900">Nord<span className="text-blue-600">Habitat</span></span>
           </div>
           <div className="flex-grow relative max-w-xl">
-            <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Rechercher une commune..." className="w-full pl-9 pr-4 py-2 bg-slate-100 border-transparent focus:bg-white border focus:border-
+            <input type="text" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Rechercher une commune..." className="w-full pl-9 pr-4 py-2 bg-slate-100 border-transparent focus:bg-white border focus:border-blue-500 rounded-lg outline-none transition-all shadow-inner text-sm" />
+            <Search className="absolute left-3 top-2.5 text-gray-400 w-4 h-4" />
+            {loading && <div className="absolute right-3 top-2.5"><Loader2 className="w-4 h-4 animate-spin text-blue-500"/></div>}
+            {suggestions.length > 0 && (
+                <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-lg shadow-xl border border-gray-100 overflow-hidden z-50">
+                    {suggestions.map(s => (
+                        <button key={s.insee} onClick={() => { setSelectedCommune(s); setViewState(ViewState.RESULT); setSearchTerm(""); setSuggestions([]); }} className="w-full text-left px-4 py-2 hover:bg-blue-50 text-gray-700 flex items-center justify-between border-b border-gray-50 last:border-0 group text-sm">
+                            <div className="flex items-center gap-2"><MapPin className={`w-3 h-3 ${s.isApiSource ? 'text-gray-400' : 'text-green-500'}`} /> <span className="font-semibold text-gray-900">{s.name}</span></div>
+                            <span className="text-[9px] text-gray-400">{s.epci}</span>
+                        </button>
+                    ))}
+                </div>
+            )}
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-grow p-4">
+        {dbError && (
+            <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4 mx-auto max-w-4xl rounded shadow-sm flex items-start gap-3">
+                <ShieldAlert className="text-red-500 w-6 h-6 flex-shrink-0" />
+                <div>
+                    <h3 className="font-bold text-red-800">Erreur de connexion à la base de données</h3>
+                    <p className="text-sm text-red-700 mt-1">{dbError}</p>
+                    <p className="text-xs text-red-500 mt-2 italic">L'application fonctionne en mode hors ligne avec les données locales.</p>
+                </div>
+            </div>
+        )}
+
+        {isSeeding && (
+            <div className="fixed bottom-4 right-4 bg-blue-600 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-3 z-50 animate-bounce">
+                <RefreshCw className="animate-spin" />
+                <div>
+                    <p className="font-bold text-sm">Mise à jour de la base...</p>
+                    <p className="text-xs opacity-80">Importation des 648 communes</p>
+                </div>
+            </div>
+        )}
+
+        {viewState === ViewState.HOME && (
+          <div className="flex flex-col items-center justify-center h-full animate-fade-in text-center mt-12">
+             <div className="bg-white rounded-3xl shadow-xl p-10 border border-slate-100 max-w-2xl">
+                <h1 className="text-3xl font-bold text-slate-900 mb-4">Référentiel Habitat <span className="text-blue-600">Nord (59)</span></h1>
+                <p className="text-slate-500 mb-8">Base de données complète avec édition des référentiels en ligne.</p>
+                {isAdmin && <div className="text-green-600 font-bold text-sm bg-green-50 p-2 rounded border border-green-200">Mode Administrateur Actif</div>}
+                
+                <div className="mt-8 grid grid-cols-2 gap-4 text-left">
+                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="flex items-center gap-2 font-bold text-slate-700 mb-1"><Target size={16}/> Objectifs SRU</div>
+                        <p className="text-xs text-slate-500">Consultez les taux et les objectifs triennaux par commune.</p>
+                     </div>
+                     <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                        <div className="flex items-center gap-2 font-bold text-slate-700 mb-1"><Euro size={16}/> Financements</div>
+                        <p className="text-xs text-slate-500">Accédez aux subventions délégataires et marges techniques.</p>
+                     </div>
+                </div>
+             </div>
+          </div>
+        )}
+
+        {viewState === ViewState.RESULT && selectedCommune && (
+          <div className="animate-fade-in max-w-7xl mx-auto">
+             <button onClick={() => setViewState(ViewState.HOME)} className="text-xs text-slate-500 hover:text-blue-600 mb-4 inline-flex items-center gap-1">&larr; Retour</button>
+             <Dashboard data={selectedCommune} isAdmin={isAdmin} />
+          </div>
+        )}
+      </main>
+
+      <footer className="bg-white border-t border-gray-200 mt-auto py-4">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
+          <p className="text-gray-500">© 2024 Nord Habitat Info - Données Firebase</p>
+          <div className="flex items-center gap-4">
+             {isAdmin && <button onClick={() => setShowEditor(true)} className="flex items-center gap-2 text-blue-600 bg-blue-50 px-3 py-1 rounded hover:bg-blue-100 font-medium"><Database className="w-3 h-3" /> Gérer Communes</button>}
+             <AdminLogin isAdmin={isAdmin} onLogin={() => setIsAdmin(true)} onLogout={() => { setIsAdmin(false); setShowEditor(false); }} onSeed={seedDatabase} />
+          </div>
+        </div>
+      </footer>
+
+      {showEditor && isAdmin && <AdminCommuneEditor onClose={() => setShowEditor(false)} initialData={allCommunes} />}
+    </div>
+  );
+};
+
+export default App;
